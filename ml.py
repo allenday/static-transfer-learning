@@ -39,6 +39,12 @@ class ML(object):
         self.ipfs_client = ipfsapi.connect(settings.IPFS_HOST, settings.IPFS_PORT)
 
         os.makedirs(TMP_DIR, exist_ok=True)
+        os.makedirs(MODELS_DIR, exist_ok=True)
+
+        # Setting for deterministic result
+        tf.set_random_seed(1)
+        tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=1, intra_op_parallelism_threads=1,
+                                         use_per_session_threads=1, device_count={'CPU': 1}))
 
     def __ipfs_save(self, file_path):
         return self.ipfs_client.add(file_path)
@@ -154,11 +160,6 @@ class ML(object):
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             batch_size=settings.BATCH_SIZE,
             class_mode='binary')
-
-        # Setting for deterministic result
-        tf.set_random_seed(1)
-        tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=1, intra_op_parallelism_threads=1,
-                                         use_per_session_threads=1, device_count={'CPU': 1}))
 
         # Create the base model from the pre-trained model MobileNet V2
         base_model = tf.keras.applications.MobileNetV2(input_shape=IMG_SHAPE,

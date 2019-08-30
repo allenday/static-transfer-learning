@@ -5,3 +5,4 @@ numpy==1.17.1
 tensorflow==1.14.0
 click==7.0
 ipfsapi==0.4.4
+Pillow==6.1.0
