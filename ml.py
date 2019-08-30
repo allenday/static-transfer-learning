@@ -86,7 +86,7 @@ class ML(object):
         result = []
 
         raw_csv = await self.fetch(session, csv_url)
-        csv_lines = sorted([i.decode('utf8') for i in raw_csv.splitlines()])[:500]
+        csv_lines = sorted([i.decode('utf8') for i in raw_csv.splitlines()])
 
         total_size = len(csv_lines)
         train_size = round(total_size * train_percentage)
