@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 import click
+import logging
+
+import settings
 
 
 @click.command()
 @click.option('--image-url',
-              default='http://tf-models.arilot.org/static-tf-models/img/Embroidered_Gauze_Blouse/img_00000112.jpg',
+              default=settings.DEFAULT_TEST_IMG_URL,
               help='Image URL')
-@click.option('--model-uri', default='default', help='URI of model')
+@click.option('--model-uri', default=settings.DEFAULT_MODEL_URI, help='URI of model')
 def inference(image_url, model_uri):
     import asyncio
     from ml import ML
@@ -22,4 +25,5 @@ def inference(image_url, model_uri):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     inference()
