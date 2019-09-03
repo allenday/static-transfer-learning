@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import csv
+import datetime
 import os
 import logging
 import random
@@ -23,6 +24,7 @@ TRAIN_DIR = os.path.join(DATA_DIR, 'train')
 VALIDATE_DIR = os.path.join(DATA_DIR, 'validate')
 MODELS_DIR = os.path.join(DATA_DIR, 'models')
 TMP_DIR = os.path.join(DATA_DIR, 'tmp')
+LOG_DIR = os.path.join(DATA_DIR, 'logs')
 
 IMG_SHAPE = (settings.IMAGE_SIZE, settings.IMAGE_SIZE, 3)
 
@@ -54,7 +56,7 @@ class ML(object):
         self.__makedirs()
 
     def __makedirs(self):
-        for path in (TMP_DIR, MODELS_DIR, TRAIN_DIR, VALIDATE_DIR):
+        for path in (TMP_DIR, MODELS_DIR, TRAIN_DIR, VALIDATE_DIR, LOG_DIR):
             os.makedirs(path, exist_ok=True)
 
     def __ipfs_save(self, file_path):
@@ -195,14 +197,17 @@ class ML(object):
         if tasks:
             await self.pool.map(self.download_file, tasks)
 
-        logging.info('Data downloaded ({count} files)'.format(count=len(tasks)))
+        count = len(tasks)
+        logging.info('Data downloaded ({count} files)'.format(count=count))
+
+        return count
 
     async def train(self, csv_url, model_uri):
         """
         Train model by CSF file
         """
         await self.cleanup()
-        await self.download_train_data(csv_url)
+        num_train = await self.download_train_data(csv_url)
 
         train_datagen = keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255, shear_range=0.2,
                                                                      zoom_range=0.2,
@@ -235,22 +240,29 @@ class ML(object):
         self.model.add(keras.layers.Dense(units=64, activation='relu'))
         self.model.add(keras.layers.Dense(units=classes_count, activation='softmax'))
 
-        self.model.compile(optimizer='adam', loss='categorical_crossentropy',
+        self.model.compile(optimizer='Adam', loss='categorical_crossentropy',
                            metrics=['categorical_accuracy', 'accuracy'])
 
         self.model.summary()
 
+        # Define the Keras TensorBoard callback.
+        logdir = os.path.join(LOG_DIR, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+        tensorboard_callback = keras.callbacks.TensorBoard(log_dir=logdir)
+
+        steps_per_epoch = round(num_train) // settings.BATCH_SIZE
         self.model.fit_generator(train_generator,
                                  epochs=settings.EPOCHS,
-                                 steps_per_epoch=60,
-                                 validation_data=validation_generator)
-
-        self.model.get_weights()
+                                 steps_per_epoch=steps_per_epoch,
+                                 validation_data=validation_generator,
+                                 validation_steps=settings.VALIDATION_STEPS,
+                                 callbacks=[tensorboard_callback])
 
         self.model.summary()
 
         logging.info('Classes: {classes}'.format(classes="; ".join(
             ['%s:%s' % (i, train_generator.class_indices[i]) for i in train_generator.class_indices.keys()])))
+
+        print(self.model.evaluate_generator(validation_generator))
 
         return await self.save_model(model_uri)
 

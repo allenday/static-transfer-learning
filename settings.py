@@ -2,10 +2,11 @@ import os
 
 DATA_DIR = os.environ.get('DATA_DIR', 'data')
 HTTP_TIMEOUT = int(os.environ.get('HTTP_TIMEOUT', 120))
-DATA_LIMIT = int(os.environ.get('DATA_LIMIT', 0))
+DATA_LIMIT = int(os.environ.get('DATA_LIMIT', 300))
 IMAGE_SIZE = int(os.environ.get('IMAGE_SIZE', 150))
 BATCH_SIZE = int(os.environ.get('BATCH_SIZE', 32))
-EPOCHS = int(os.environ.get('EPOCHS', 10))
+EPOCHS = int(os.environ.get('EPOCHS', 200))
+VALIDATION_STEPS = int(os.environ.get('VALIDATION_STEPS', 20))
 WORKERS = int(os.environ.get('WORKERS', 1))
 TRAIN_PERCENTAGE = float(os.environ.get('TRAIN_PERCENTAGE', 0.9))
 DOWNLOAD_POOL_SIZE = int(os.environ.get('DOWNLOAD_POOL_SIZE', 100))
