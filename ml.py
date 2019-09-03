@@ -4,14 +4,19 @@ import asyncio
 import csv
 import os
 import logging
+import random
 import uuid
+import matplotlib.pyplot as plt
 import ipfsapi
 import async_timeout
 import tensorflow as tf
+from asyncio_pool import AioPool
 from tensorflow import keras
 from aiofile import AIOFile
 from aiohttp import ClientSession
 import numpy as np
+import PIL
+from PIL import Image
 
 import settings
 
@@ -33,18 +38,27 @@ class ModelNotFound(BaseException):
     pass
 
 
+class InvalidTestData(BaseException):
+    pass
+
+
 class ML(object):
     def __init__(self):
         self.model = None
         self.ipfs_client = ipfsapi.connect(settings.IPFS_HOST, settings.IPFS_PORT)
-
-        os.makedirs(TMP_DIR, exist_ok=True)
-        os.makedirs(MODELS_DIR, exist_ok=True)
+        self.pool = AioPool(size=settings.DOWNLOAD_POOL_SIZE)
 
         # Setting for deterministic result
         tf.set_random_seed(1)
-        tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=1, intra_op_parallelism_threads=1,
-                                         use_per_session_threads=1, device_count={'CPU': 1}))
+        # self.tf_session = tf.Session(
+        #     config=tf.ConfigProto(inter_op_parallelism_threads=1, intra_op_parallelism_threads=1,
+        #                           use_per_session_threads=1, device_count={'CPU': 1}))
+
+        self.__makedirs()
+
+    def __makedirs(self):
+        for path in (TMP_DIR, MODELS_DIR, TRAIN_DIR, VALIDATE_DIR):
+            os.makedirs(path, exist_ok=True)
 
     def __ipfs_save(self, file_path):
         return self.ipfs_client.add(file_path)
@@ -75,70 +89,149 @@ class ML(object):
 
         return keras.models.load_model(model_path)
 
-    async def fetch(self, session, url):
-        with async_timeout.timeout(settings.HTTP_TIMEOUT):
-            async with session.get(url) as response:
-                return await response.read()
+    @staticmethod
+    def jpeg_to_8_bit_greyscale(path):
+        """
+        Use Pillow library to convert an input jpeg to a 8 bit grey scale image array for processing.
+        """
+        img = Image.open(path).convert('L')  # convert image to 8-bit grayscale
+        # Make aspect ratio as 1:1, by applying image crop.
+        # Please note, croping works for this data set, but in general one
+        # needs to locate the subject and then crop or scale accordingly.
+        WIDTH, HEIGHT = img.size
+        if WIDTH != HEIGHT:
+            m_min_d = min(WIDTH, HEIGHT)
+            img = img.crop((0, 0, m_min_d, m_min_d))
+        # Scale the image to the requested maxsize by Anti-alias sampling.
+        img.thumbnail((settings.IMAGE_SIZE, settings.IMAGE_SIZE), PIL.Image.ANTIALIAS)
+        return np.asarray(img)
 
-    async def download_file(self, session, url, file_path):
-        response = await self.fetch(session, url)
-        async with AIOFile(file_path, 'wb+') as afp:
-            await afp.write(response)
-            await afp.fsync()
-            logging.info("File {url} downloaded to {file_path}".format(url=url, file_path=file_path))
-            return ""
+    async def fetch(self, url):
+        async with ClientSession() as session:
+            with async_timeout.timeout(settings.HTTP_TIMEOUT):
+                async with session.get(url) as response:
+                    return await response.read()
 
-    async def get_links_for_train(self, session, csv_url, train_percentage=0.9):
+    async def download_file(self, req):
+        url = req['url']
+        file_path = req['file_path']
+
+        print('Downloading {url} into {file_path}'.format(url=url, file_path=file_path))
+
+        response = await self.fetch(url)
+        try:
+            async with AIOFile(file_path, 'wb+') as afp:
+                await afp.write(response)
+                await afp.fsync()
+                logging.info("File {url} downloaded to {file_path}".format(url=url, file_path=file_path))
+                return ""
+        except:
+            os.remove(file_path)
+
+    async def get_links_for_train(self, csv_url):
         result = []
+        result_by_labels = {}
 
-        raw_csv = await self.fetch(session, csv_url)
-        csv_lines = sorted([i.decode('utf8') for i in raw_csv.splitlines()])
+        raw_csv = await self.fetch(csv_url)
+        csv_lines = [i.decode('utf8') for i in raw_csv.splitlines()]
+        random.seed(1)
+        random.shuffle(csv_lines)
 
-        total_size = len(csv_lines)
-        train_size = round(total_size * train_percentage)
-        validate_size = total_size - train_size
+        reader = csv.reader(csv_lines, delimiter=',', quotechar='|')
+        for url, label in reader:
+            if label not in result_by_labels:
+                result_by_labels[label] = []
+
+            result_by_labels[label].append(url)
+
+        labels_count = len(result_by_labels.keys())
+
+        print("Found {labels_count} labels in CSV".format(labels_count=labels_count))
+
+        label_imgs_limit = min([len(result_by_labels[i]) for i in result_by_labels])
+
+        if settings.DATA_LIMIT and label_imgs_limit > settings.DATA_LIMIT:
+            label_imgs_limit = settings.DATA_LIMIT
+
+        train_size = round(label_imgs_limit * settings.TRAIN_PERCENTAGE)
+        validate_size = label_imgs_limit - train_size
 
         logging.info(
-            'Found {total_size} lines in csv. Train size: {train_size} / Validate size: {validate_size}'.format(
-                total_size=total_size,
+            'Found {label_imgs_limit} lines in csv. Train size: {train_size} / Validate size: {validate_size}'.format(
+                label_imgs_limit=label_imgs_limit,
                 train_size=train_size,
                 validate_size=validate_size
             )
         )
 
-        reader = csv.reader(csv_lines, delimiter=',', quotechar='|')
-        for counter, (url, label) in enumerate(reader):
+        for counter in range(0, label_imgs_limit):
             if counter <= train_size:
                 i_type = 'train'
             else:
                 i_type = 'validate'
 
-            result.append({
-                'url': url,
-                'label': label,
-                'i_type': i_type,
-                'file_name': '{counter}.jpg'.format(counter=counter)
-            })
+            for label in result_by_labels.keys():
+                url = result_by_labels[label].pop()
+                result.append({
+                    'url': url,
+                    'label': label,
+                    'i_type': i_type,
+                    'file_name': '{counter}.jpg'.format(counter=counter)
+                })
 
         return result
 
     async def download_train_data(self, csv_url):
         tasks = []
+        created_label_dirs = []
 
-        async with ClientSession() as session:
-            links = await self.get_links_for_train(session, csv_url)
-            for link in links:
-                dir_path = os.path.join(DATA_DIR, link['i_type'], link['label'])
-                file_path = os.path.join(dir_path, link['file_name'])
+        links = await self.get_links_for_train(csv_url)
+        print('Found {count} links'.format(count=len(links)))
 
+        for link in links:
+            dir_path = os.path.join(DATA_DIR, link['i_type'], link['label'])
+            file_path = os.path.join(dir_path, link['file_name'])
+
+            if dir_path not in created_label_dirs:
                 os.makedirs(dir_path, exist_ok=True)
+                created_label_dirs.append(dir_path)
 
-                if not os.path.isfile(file_path):
-                    tasks.append(asyncio.ensure_future(self.download_file(session, link['url'], file_path)))
+            if not os.path.isfile(file_path):
+                tasks.append({
+                    "url": link['url'],
+                    "file_path": file_path
+                })
 
-            _ = await asyncio.gather(*tasks)
+        await self.pool.map(self.download_file, tasks)
 
-            logging.info('Data downloaded ({count} files)'.format(count=len(tasks)))
+        logging.info('Data downloaded ({count} files)'.format(count=len(tasks)))
+
+    async def load_image_dataset(self, path_dir):
+        images = []
+        labels = []
+
+        class_names = os.listdir(path_dir)
+        class_names.sort()
+
+        for label in class_names:
+            for file in os.listdir(os.path.join(path_dir, label)):
+                img = self.jpeg_to_8_bit_greyscale(os.path.join(path_dir, label, file))
+                images.append(img)
+                labels.append(class_names.index(label))
+
+        return np.asarray(images), np.asarray(labels), class_names
+
+    async def display_images(self, images, labels, class_names):
+        plt.figure(figsize=(10, 10))
+        grid_size = min(25, len(images))
+        for i in range(grid_size):
+            plt.subplot(5, 5, i + 1)
+            plt.xticks([])
+            plt.yticks([])
+            plt.grid(False)
+            plt.imshow(images[i], cmap=plt.cm.binary)
+            plt.xlabel(class_names[labels[i]])
+        plt.show()
 
     async def train(self, csv_url, model_uri):
         """
@@ -146,50 +239,43 @@ class ML(object):
         """
         await self.download_train_data(csv_url)
 
-        train_datagen = keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255)
-        validation_datagen = keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255)
+        train_images, train_labels, train_class_names = await self.load_image_dataset(TRAIN_DIR)
+        test_images, test_labels, test_class_names = await self.load_image_dataset(VALIDATE_DIR)
 
-        train_generator = train_datagen.flow_from_directory(
-            TRAIN_DIR,
-            target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
-            batch_size=settings.BATCH_SIZE,
-            class_mode='binary')
+        if train_class_names != test_class_names:
+            raise InvalidTestData("Labels in training and validate data do not match")
 
-        validation_generator = validation_datagen.flow_from_directory(
-            VALIDATE_DIR,
-            target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
-            batch_size=settings.BATCH_SIZE,
-            class_mode='binary')
+        print(train_images.shape)
+        print(train_labels)
 
-        # Create the base model from the pre-trained model MobileNet V2
-        base_model = tf.keras.applications.MobileNetV2(input_shape=IMG_SHAPE,
-                                                       include_top=False,
-                                                       weights='imagenet')
-        base_model.trainable = False
+        # await self.display_images(train_images, train_labels, train_class_names)
 
-        self.model = tf.keras.Sequential([
-            base_model,
-            keras.layers.GlobalAveragePooling2D(),
-            keras.layers.Dense(1, activation='sigmoid')
+        train_images = train_images / 255.0
+        test_images = test_images / 255.0
+
+        # Setting up the layers.
+        self.model = keras.Sequential([
+            keras.layers.Flatten(input_shape=(settings.IMAGE_SIZE, settings.IMAGE_SIZE)),
+            keras.layers.Dense(128, activation=tf.nn.relu),
+            keras.layers.Dense(10, activation=tf.nn.softmax)
         ])
 
-        self.model.compile(optimizer=tf.keras.optimizers.RMSprop(lr=0.0001),
-                           loss='binary_crossentropy',
+        # sgd = keras.optimizers.SGD(lr=0.01, decay=1e-5, momentum=0.7, nesterov=True)
+
+        self.model.compile(optimizer='adam',
+                           loss='sparse_categorical_crossentropy',
                            metrics=['accuracy'])
 
-        steps_per_epoch = train_generator.n // settings.BATCH_SIZE
-        validation_steps = validation_generator.n // settings.BATCH_SIZE
+        self.model.fit(train_images, train_labels, epochs=settings.EPOCHS)
 
-        self.model.fit_generator(train_generator,
-                                 steps_per_epoch=steps_per_epoch,
-                                 epochs=settings.EPOCHS,
-                                 workers=settings.WORKERS,
-                                 validation_data=validation_generator,
-                                 validation_steps=validation_steps)
+        test_loss, test_acc = self.model.evaluate(test_images, test_labels)
+        print('Test accuracy:', test_acc)
 
-        self.model.get_weights()
+        predictions = self.model.predict(test_images)
 
-        self.model.summary()
+        print(predictions)
+
+        await self.display_images(test_images, np.argmax(predictions, axis=1), class_names=train_class_names)
 
         await self.save_model(model_uri)
 
@@ -200,16 +286,17 @@ class ML(object):
 
         image_tmp_path = os.path.join(TMP_DIR, uuid.uuid1().__str__() + ".jpg")
 
-        async with ClientSession() as session:
-            await self.download_file(session, image_url, image_tmp_path)
+        await self.download_file(image_url, image_tmp_path)
 
-            img = keras.preprocessing.image.load_img(image_tmp_path,
-                                                     target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
-            img = keras.preprocessing.image.img_to_array(img)
-            img = np.expand_dims(img, axis=0)
+        img = keras.preprocessing.image.load_img(image_tmp_path,
+                                                 target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
+        img = keras.preprocessing.image.img_to_array(img)
+        img = np.expand_dims(img, axis=0)
 
-            result = self.model.predict_classes(img)
+        result = self.model.predict_classes(img)
 
-            os.remove(image_tmp_path)
+        os.remove(image_tmp_path)
 
-            return result
+        print(result)
+
+        return result
