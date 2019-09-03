@@ -1,12 +1,11 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-import asyncio
 import csv
 import os
 import logging
 import random
+import shutil
 import uuid
-import matplotlib.pyplot as plt
 import ipfsapi
 import async_timeout
 import tensorflow as tf
@@ -15,8 +14,6 @@ from tensorflow import keras
 from aiofile import AIOFile
 from aiohttp import ClientSession
 import numpy as np
-import PIL
-from PIL import Image
 
 import settings
 
@@ -49,7 +46,7 @@ class ML(object):
         self.pool = AioPool(size=settings.DOWNLOAD_POOL_SIZE)
 
         # Setting for deterministic result
-        tf.set_random_seed(1)
+        tf.compat.v1.set_random_seed(1)
         # self.tf_session = tf.Session(
         #     config=tf.ConfigProto(inter_op_parallelism_threads=1, intra_op_parallelism_threads=1,
         #                           use_per_session_threads=1, device_count={'CPU': 1}))
@@ -80,31 +77,14 @@ class ML(object):
         model_path = self.__get_model_path(model_uri)
         self.model.save(model_path)
         logging.info('Model saved into {model_path}'.format(model_path=model_path))
-        return True
+        return model_path
 
-    def load_model(self, model_uri):
+    def load_model(self, model_uri=settings.DEFAULT_MODEL_URI):
         model_path = self.__get_model_path(model_uri)
         if not os.path.exists(model_path):
             raise ModelNotFound('Model with path {model_path} not found'.format(model_path=model_path))
 
         return keras.models.load_model(model_path)
-
-    @staticmethod
-    def jpeg_to_8_bit_greyscale(path):
-        """
-        Use Pillow library to convert an input jpeg to a 8 bit grey scale image array for processing.
-        """
-        img = Image.open(path).convert('L')  # convert image to 8-bit grayscale
-        # Make aspect ratio as 1:1, by applying image crop.
-        # Please note, croping works for this data set, but in general one
-        # needs to locate the subject and then crop or scale accordingly.
-        WIDTH, HEIGHT = img.size
-        if WIDTH != HEIGHT:
-            m_min_d = min(WIDTH, HEIGHT)
-            img = img.crop((0, 0, m_min_d, m_min_d))
-        # Scale the image to the requested maxsize by Anti-alias sampling.
-        img.thumbnail((settings.IMAGE_SIZE, settings.IMAGE_SIZE), PIL.Image.ANTIALIAS)
-        return np.asarray(img)
 
     async def fetch(self, url):
         async with ClientSession() as session:
@@ -116,7 +96,7 @@ class ML(object):
         url = req['url']
         file_path = req['file_path']
 
-        print('Downloading {url} into {file_path}'.format(url=url, file_path=file_path))
+        logging.debug('Downloading {url} into {file_path}'.format(url=url, file_path=file_path))
 
         response = await self.fetch(url)
         try:
@@ -124,9 +104,15 @@ class ML(object):
                 await afp.write(response)
                 await afp.fsync()
                 logging.info("File {url} downloaded to {file_path}".format(url=url, file_path=file_path))
-                return ""
         except:
+            logging.warning("Error downloading file {url}".format(url=url))
             os.remove(file_path)
+
+        if not os.stat(file_path).st_size:
+            logging.warning("File {file_path} is empty".format(file_path=file_path))
+            os.remove(file_path)
+
+        return True
 
     async def get_links_for_train(self, csv_url):
         result = []
@@ -146,7 +132,7 @@ class ML(object):
 
         labels_count = len(result_by_labels.keys())
 
-        print("Found {labels_count} labels in CSV".format(labels_count=labels_count))
+        logging.info("Found {labels_count} labels in CSV".format(labels_count=labels_count))
 
         label_imgs_limit = min([len(result_by_labels[i]) for i in result_by_labels])
 
@@ -181,12 +167,16 @@ class ML(object):
 
         return result
 
+    async def cleanup(self):
+        for path in [TRAIN_DIR, VALIDATE_DIR]:
+            shutil.rmtree(path, ignore_errors=True)
+
     async def download_train_data(self, csv_url):
         tasks = []
         created_label_dirs = []
 
         links = await self.get_links_for_train(csv_url)
-        print('Found {count} links'.format(count=len(links)))
+        logging.info('Found {count} links'.format(count=len(links)))
 
         for link in links:
             dir_path = os.path.join(DATA_DIR, link['i_type'], link['label'])
@@ -202,101 +192,88 @@ class ML(object):
                     "file_path": file_path
                 })
 
-        await self.pool.map(self.download_file, tasks)
+        if tasks:
+            await self.pool.map(self.download_file, tasks)
 
         logging.info('Data downloaded ({count} files)'.format(count=len(tasks)))
-
-    async def load_image_dataset(self, path_dir):
-        images = []
-        labels = []
-
-        class_names = os.listdir(path_dir)
-        class_names.sort()
-
-        for label in class_names:
-            for file in os.listdir(os.path.join(path_dir, label)):
-                img = self.jpeg_to_8_bit_greyscale(os.path.join(path_dir, label, file))
-                images.append(img)
-                labels.append(class_names.index(label))
-
-        return np.asarray(images), np.asarray(labels), class_names
-
-    async def display_images(self, images, labels, class_names):
-        plt.figure(figsize=(10, 10))
-        grid_size = min(25, len(images))
-        for i in range(grid_size):
-            plt.subplot(5, 5, i + 1)
-            plt.xticks([])
-            plt.yticks([])
-            plt.grid(False)
-            plt.imshow(images[i], cmap=plt.cm.binary)
-            plt.xlabel(class_names[labels[i]])
-        plt.show()
 
     async def train(self, csv_url, model_uri):
         """
         Train model by CSF file
         """
+        await self.cleanup()
         await self.download_train_data(csv_url)
 
-        train_images, train_labels, train_class_names = await self.load_image_dataset(TRAIN_DIR)
-        test_images, test_labels, test_class_names = await self.load_image_dataset(VALIDATE_DIR)
+        train_datagen = keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255, shear_range=0.2,
+                                                                     zoom_range=0.2,
+                                                                     horizontal_flip=True)
+        validation_datagen = keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255, shear_range=0.2,
+                                                                          zoom_range=0.2,
+                                                                          horizontal_flip=True)
 
-        if train_class_names != test_class_names:
-            raise InvalidTestData("Labels in training and validate data do not match")
+        train_generator = train_datagen.flow_from_directory(
+            TRAIN_DIR,
+            target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
+            batch_size=settings.BATCH_SIZE,
+            class_mode='categorical')
 
-        print(train_images.shape)
-        print(train_labels)
+        validation_generator = validation_datagen.flow_from_directory(
+            VALIDATE_DIR,
+            target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
+            batch_size=settings.BATCH_SIZE,
+            class_mode='categorical')
 
-        # await self.display_images(train_images, train_labels, train_class_names)
+        classes_count = len(train_generator.class_indices.keys())
 
-        train_images = train_images / 255.0
-        test_images = test_images / 255.0
+        self.model = keras.Sequential()
+        self.model.add(
+            keras.layers.Convolution2D(filters=56, kernel_size=(3, 3), activation='relu', input_shape=IMG_SHAPE))
+        self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+        self.model.add(keras.layers.Convolution2D(32, (3, 3), activation='relu'))
+        self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+        self.model.add(keras.layers.Flatten())
+        self.model.add(keras.layers.Dense(units=64, activation='relu'))
+        self.model.add(keras.layers.Dense(units=classes_count, activation='softmax'))
 
-        # Setting up the layers.
-        self.model = keras.Sequential([
-            keras.layers.Flatten(input_shape=(settings.IMAGE_SIZE, settings.IMAGE_SIZE)),
-            keras.layers.Dense(128, activation=tf.nn.relu),
-            keras.layers.Dense(10, activation=tf.nn.softmax)
-        ])
+        self.model.compile(optimizer='adam', loss='categorical_crossentropy',
+                           metrics=['categorical_accuracy', 'accuracy'])
 
-        # sgd = keras.optimizers.SGD(lr=0.01, decay=1e-5, momentum=0.7, nesterov=True)
+        self.model.summary()
 
-        self.model.compile(optimizer='adam',
-                           loss='sparse_categorical_crossentropy',
-                           metrics=['accuracy'])
+        self.model.fit_generator(train_generator,
+                                 epochs=settings.EPOCHS,
+                                 steps_per_epoch=60,
+                                 validation_data=validation_generator)
 
-        self.model.fit(train_images, train_labels, epochs=settings.EPOCHS)
+        self.model.get_weights()
 
-        test_loss, test_acc = self.model.evaluate(test_images, test_labels)
-        print('Test accuracy:', test_acc)
+        self.model.summary()
 
-        predictions = self.model.predict(test_images)
+        logging.info('Classes: {classes}'.format(classes="; ".join(
+            ['%s:%s' % (i, train_generator.class_indices[i]) for i in train_generator.class_indices.keys()])))
 
-        print(predictions)
-
-        await self.display_images(test_images, np.argmax(predictions, axis=1), class_names=train_class_names)
-
-        await self.save_model(model_uri)
-
-        return True
+        return await self.save_model(model_uri)
 
     async def inference(self, image_url, model_uri, output_uri):
         self.model = self.load_model(model_uri)
 
         image_tmp_path = os.path.join(TMP_DIR, uuid.uuid1().__str__() + ".jpg")
 
-        await self.download_file(image_url, image_tmp_path)
+        await self.download_file({
+            "url": image_url,
+            "file_path": image_tmp_path
+        })
 
         img = keras.preprocessing.image.load_img(image_tmp_path,
                                                  target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
         img = keras.preprocessing.image.img_to_array(img)
+        img = np.reshape(img, [settings.IMAGE_SIZE, settings.IMAGE_SIZE, 3])
         img = np.expand_dims(img, axis=0)
 
         result = self.model.predict_classes(img)
 
-        os.remove(image_tmp_path)
-
         print(result)
+
+        os.remove(image_tmp_path)
 
         return result

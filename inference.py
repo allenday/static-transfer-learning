@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 import click
+import logging
+
 import settings
 
 
@@ -23,4 +25,5 @@ def inference(image_url, model_uri):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     inference()
