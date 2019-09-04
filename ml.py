@@ -4,19 +4,26 @@ import csv
 import datetime
 import os
 import logging
-import random
 import shutil
 import uuid
 import ipfsapi
 import async_timeout
-import tensorflow as tf
-from asyncio_pool import AioPool
-from tensorflow import keras
+import settings
 from aiofile import AIOFile
+from asyncio_pool import AioPool
 from aiohttp import ClientSession
+
+import random
+
+random.seed(1)
+
 import numpy as np
 
-import settings
+np.random.seed(1)
+
+import tensorflow as tf
+
+tf.set_random_seed(1)
 
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
 DATA_DIR = os.path.join(PROJECT_DIR, settings.DATA_DIR)
@@ -27,6 +34,9 @@ TMP_DIR = os.path.join(DATA_DIR, 'tmp')
 LOG_DIR = os.path.join(DATA_DIR, 'logs')
 
 IMG_SHAPE = (settings.IMAGE_SIZE, settings.IMAGE_SIZE, 3)
+
+
+# TODO: THEANO_FLAGS="dnn.conv.algo_bwd_filter=deterministic,dnn.conv.algo_bwd_data=deterministic"
 
 
 class FileDownloadError(BaseException):
@@ -48,10 +58,9 @@ class ML(object):
         self.pool = AioPool(size=settings.DOWNLOAD_POOL_SIZE)
 
         # Setting for deterministic result
-        tf.compat.v1.set_random_seed(1)
-        # self.tf_session = tf.Session(
-        #     config=tf.ConfigProto(inter_op_parallelism_threads=1, intra_op_parallelism_threads=1,
-        #                           use_per_session_threads=1, device_count={'CPU': 1}))
+
+        self.tf_sess = tf.Session()
+        tf.keras.backend.set_session(self.tf_sess)
 
         self.__makedirs()
 
@@ -86,7 +95,7 @@ class ML(object):
         if not os.path.exists(model_path):
             raise ModelNotFound('Model with path {model_path} not found'.format(model_path=model_path))
 
-        return keras.models.load_model(model_path)
+        return tf.keras.models.load_model(model_path)
 
     async def fetch(self, url):
         async with ClientSession() as session:
@@ -122,7 +131,6 @@ class ML(object):
 
         raw_csv = await self.fetch(csv_url)
         csv_lines = [i.decode('utf8') for i in raw_csv.splitlines()]
-        random.seed(1)
         random.shuffle(csv_lines)
 
         reader = csv.reader(csv_lines, delimiter=',', quotechar='|')
@@ -167,7 +175,7 @@ class ML(object):
                     'file_name': '{counter}.jpg'.format(counter=counter)
                 })
 
-        return result
+        return result, train_size, validate_size
 
     async def cleanup(self):
         for path in [TRAIN_DIR, VALIDATE_DIR]:
@@ -177,7 +185,7 @@ class ML(object):
         tasks = []
         created_label_dirs = []
 
-        links = await self.get_links_for_train(csv_url)
+        links, train_size, validate_size = await self.get_links_for_train(csv_url)
         logging.info('Found {count} links'.format(count=len(links)))
 
         for link in links:
@@ -197,24 +205,23 @@ class ML(object):
         if tasks:
             await self.pool.map(self.download_file, tasks)
 
-        count = len(tasks)
-        logging.info('Data downloaded ({count} files)'.format(count=count))
+        logging.info('Data downloaded ({count} files)'.format(count=len(tasks)))
 
-        return count
+        return train_size, validate_size
 
     async def train(self, csv_url, model_uri):
         """
         Train model by CSF file
         """
         await self.cleanup()
-        num_train = await self.download_train_data(csv_url)
+        train_size, validate_size = await self.download_train_data(csv_url)
 
-        train_datagen = keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255, shear_range=0.2,
-                                                                     zoom_range=0.2,
-                                                                     horizontal_flip=True)
-        validation_datagen = keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255, shear_range=0.2,
-                                                                          zoom_range=0.2,
-                                                                          horizontal_flip=True)
+        train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255, shear_range=0.2,
+                                                                        zoom_range=0.2,
+                                                                        horizontal_flip=True)
+        validation_datagen = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255, shear_range=0.2,
+                                                                             zoom_range=0.2,
+                                                                             horizontal_flip=True)
 
         train_generator = train_datagen.flow_from_directory(
             TRAIN_DIR,
@@ -230,15 +237,15 @@ class ML(object):
 
         classes_count = len(train_generator.class_indices.keys())
 
-        self.model = keras.Sequential()
+        self.model = tf.keras.Sequential()
         self.model.add(
-            keras.layers.Convolution2D(filters=56, kernel_size=(3, 3), activation='relu', input_shape=IMG_SHAPE))
-        self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-        self.model.add(keras.layers.Convolution2D(32, (3, 3), activation='relu'))
-        self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-        self.model.add(keras.layers.Flatten())
-        self.model.add(keras.layers.Dense(units=64, activation='relu'))
-        self.model.add(keras.layers.Dense(units=classes_count, activation='softmax'))
+            tf.keras.layers.Convolution2D(filters=56, kernel_size=(3, 3), activation='relu', input_shape=IMG_SHAPE))
+        self.model.add(tf.keras.layers.MaxPooling2D(pool_size=(2, 2)))
+        self.model.add(tf.keras.layers.Convolution2D(32, (3, 3), activation='relu'))
+        self.model.add(tf.keras.layers.MaxPooling2D(pool_size=(2, 2)))
+        self.model.add(tf.keras.layers.Flatten())
+        self.model.add(tf.keras.layers.Dense(units=64, activation='relu'))
+        self.model.add(tf.keras.layers.Dense(units=classes_count, activation='softmax'))
 
         self.model.compile(optimizer='Adam', loss='categorical_crossentropy',
                            metrics=['categorical_accuracy', 'accuracy'])
@@ -247,14 +254,16 @@ class ML(object):
 
         # Define the Keras TensorBoard callback.
         logdir = os.path.join(LOG_DIR, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-        tensorboard_callback = keras.callbacks.TensorBoard(log_dir=logdir)
+        tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
 
-        steps_per_epoch = round(num_train) // settings.BATCH_SIZE
+        steps_per_epoch = round(train_size) // settings.BATCH_SIZE
+        validation_steps = round(validate_size) // settings.BATCH_SIZE
+
         self.model.fit_generator(train_generator,
                                  epochs=settings.EPOCHS,
                                  steps_per_epoch=steps_per_epoch,
                                  validation_data=validation_generator,
-                                 validation_steps=settings.VALIDATION_STEPS,
+                                 validation_steps=validation_steps,
                                  callbacks=[tensorboard_callback])
 
         self.model.summary()
@@ -262,8 +271,7 @@ class ML(object):
         logging.info('Classes: {classes}'.format(classes="; ".join(
             ['%s:%s' % (i, train_generator.class_indices[i]) for i in train_generator.class_indices.keys()])))
 
-        loss, categorical_accuracy, acc = self.model.evaluate(validation_generator, use_multiprocessing=True,
-                                                              workers=settings.WORKERS)
+        loss, categorical_accuracy, acc = self.model.evaluate(validation_generator, use_multiprocessing=True)
         print("Untrained model, accuracy: {:5.2f}%".format(100 * acc))
 
         return await self.save_model(model_uri)
@@ -278,9 +286,9 @@ class ML(object):
             "file_path": image_tmp_path
         })
 
-        img = keras.preprocessing.image.load_img(image_tmp_path,
-                                                 target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
-        img = keras.preprocessing.image.img_to_array(img)
+        img = tf.keras.preprocessing.image.load_img(image_tmp_path,
+                                                    target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
+        img = tf.keras.preprocessing.image.img_to_array(img)
         img = np.reshape(img, [settings.IMAGE_SIZE, settings.IMAGE_SIZE, 3])
         img = np.expand_dims(img, axis=0)
 
@@ -295,9 +303,9 @@ class ML(object):
     async def evaluate(self):
         self.model = self.load_model()
 
-        validation_datagen = keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255, shear_range=0.2,
-                                                                          zoom_range=0.2,
-                                                                          horizontal_flip=True)
+        validation_datagen = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255, shear_range=0.2,
+                                                                             zoom_range=0.2,
+                                                                             horizontal_flip=True)
 
         validation_generator = validation_datagen.flow_from_directory(
             VALIDATE_DIR,
@@ -305,6 +313,5 @@ class ML(object):
             batch_size=settings.BATCH_SIZE,
             class_mode='categorical')
 
-        loss, categorical_accuracy, acc = self.model.evaluate(validation_generator, use_multiprocessing=True,
-                                                              workers=settings.WORKERS)
+        loss, categorical_accuracy, acc = self.model.evaluate(validation_generator, use_multiprocessing=True)
         print("Restored model, accuracy: {:5.2f}%".format(100 * acc))
