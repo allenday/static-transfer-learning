@@ -143,8 +143,8 @@ class ML(DataManager):
 
         return result
 
-    async def evaluate(self):
-        self.model = self.load_model()
+    async def evaluate(self, model_filename):
+        self.model = self.load_model(model_filename)
 
         validation_datagen = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255, shear_range=0.2,
                                                                              zoom_range=0.2,
