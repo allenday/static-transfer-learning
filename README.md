@@ -31,7 +31,7 @@ Available variables:
 | IPFS_HOST     | `https://ipfs.infura.io` | Address of IPFS endpoint. Infura public endpoint by default |
 | IPFS_PORT    |  `5001`       | Port of IPFS endpoint      |
 | DEFAULT_INPUT_CSV_URL | `http://tf-models.arilot.org/static-tf-models/input.csv` | Default URL of CSV file with images and labels for training. You can set this value using `--csv-url` CLI flag |
-| DEFAULT_MODEL_URI | `default.hdf5` | Default URI of model. You can set this value using `--model-uri` CLI flag |
+| DEFAULT_MODEL_FILENAME | `default.hdf5` | Default file name of model. You can set this value using `--model-filename` CLI flag |
 | DEFAULT_TEST_IMG_URL | `http://tf-models.arilot.org/static-tf-models/img/Embroidered_Gauze_Blouse/img_00000014.jpg` | Default URL of test image for predict mode. You can set this value using `--image-url` CLI flag |
 
 ## Usage
