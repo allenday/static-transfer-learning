@@ -46,11 +46,11 @@ Docker way:
 
 ### Evaluate mode
 
-    python evaluate.py
+    python evaluate.py --model-filename=mymodel
 
 Docker way:
 
-    docker run --rm -v `pwd`/data:/usr/src/app/data static-transfer-learning python evaluate.py
+    docker run --rm -v `pwd`/data:/usr/src/app/data static-transfer-learning python evaluate.py --model-filename=mymodel
 
 ### Inference mode (in progress)
 
