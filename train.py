@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import click
 import settings
+import logging
 
 
 @click.command()
@@ -21,4 +22,5 @@ def train(csv_url, model_uri):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     train()
