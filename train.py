@@ -11,7 +11,7 @@ def train(csv_url, model_filename):
     import asyncio
     from ml import ML
     click.echo('Starting train mode with URL {csv_url} and model_uri {model_uri}'.format(csv_url=csv_url,
-                                                                                         model_uri=model_uri))
+                                                                                         model_uri=model_filename))
 
     loop = asyncio.get_event_loop()
 
