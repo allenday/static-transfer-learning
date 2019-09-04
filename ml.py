@@ -262,7 +262,9 @@ class ML(object):
         logging.info('Classes: {classes}'.format(classes="; ".join(
             ['%s:%s' % (i, train_generator.class_indices[i]) for i in train_generator.class_indices.keys()])))
 
-        print(self.model.evaluate_generator(validation_generator))
+        loss, categorical_accuracy, acc = self.model.evaluate(validation_generator, use_multiprocessing=True,
+                                                              workers=settings.WORKERS)
+        print("Untrained model, accuracy: {:5.2f}%".format(100 * acc))
 
         return await self.save_model(model_uri)
 
@@ -289,3 +291,20 @@ class ML(object):
         os.remove(image_tmp_path)
 
         return result
+
+    async def evaluate(self):
+        self.model = self.load_model()
+
+        validation_datagen = keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255, shear_range=0.2,
+                                                                          zoom_range=0.2,
+                                                                          horizontal_flip=True)
+
+        validation_generator = validation_datagen.flow_from_directory(
+            VALIDATE_DIR,
+            target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
+            batch_size=settings.BATCH_SIZE,
+            class_mode='categorical')
+
+        loss, categorical_accuracy, acc = self.model.evaluate(validation_generator, use_multiprocessing=True,
+                                                              workers=settings.WORKERS)
+        print("Restored model, accuracy: {:5.2f}%".format(100 * acc))
