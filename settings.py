@@ -13,4 +13,5 @@ IPFS_PORT = int(os.environ.get('IPFS_PORT', 5001))
 DEFAULT_INPUT_CSV_URL = os.environ.get('DEFAULT_INPUT_CSV_URL',
                                        'http://tf-models.arilot.org/static-tf-models/input.csv')
 DEFAULT_MODEL_FILENAME = os.environ.get('DEFAULT_MODEL_FILENAME', 'default.hdf5')
-DEFAULT_TEST_IMG_URL = os.environ.get('DEFAULT_TEST_IMG_URL', 'http://tf-models.arilot.org/static-tf-models/img/Embroidered_Gauze_Blouse/img_00000014.jpg')
+DEFAULT_TEST_IMG_URL = os.environ.get('DEFAULT_TEST_IMG_URL',
+                                      'http://tf-models.arilot.org/static-tf-models/img/Abstract-Patterned_Blouse/img_00000049.jpg')

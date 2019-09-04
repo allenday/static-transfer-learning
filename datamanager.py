@@ -78,7 +78,7 @@ class DataManager(object):
         return True
 
     async def get_links_for_train(self, csv_url):
-        result = []
+        links = []
         result_by_labels = {}
 
         raw_csv = await self.fetch(csv_url)
@@ -88,7 +88,9 @@ class DataManager(object):
         random.shuffle(csv_lines)
 
         reader = csv.reader(csv_lines, delimiter=',', quotechar='|')
+        csv_lines_counter = 0
         for url, label in reader:
+            csv_lines_counter += 1
             if label not in result_by_labels:
                 result_by_labels[label] = []
 
@@ -107,10 +109,10 @@ class DataManager(object):
         validate_size = label_imgs_limit - train_size
 
         logging.info(
-            'Found {label_imgs_limit} lines in csv. Train size: {train_size} / Validate size: {validate_size}'.format(
-                label_imgs_limit=label_imgs_limit,
-                train_size=train_size,
-                validate_size=validate_size
+            'Found {csv_lines_counter} lines in csv. Train size: {train_size} / Validate size: {validate_size}'.format(
+                csv_lines_counter=csv_lines_counter,
+                train_size=train_size * labels_count,
+                validate_size=validate_size * labels_count
             )
         )
 
@@ -122,14 +124,16 @@ class DataManager(object):
 
             for label in result_by_labels.keys():
                 url = result_by_labels[label].pop()
-                result.append({
+                links.append({
                     'url': url,
                     'label': label,
                     'i_type': i_type,
                     'file_name': '{counter}.jpg'.format(counter=counter)
                 })
 
-        return result, train_size, validate_size
+        logging.info('Found {count} links'.format(count=len(links)))
+
+        return links, train_size, validate_size
 
     async def download_train_data(self, csv_url):
         tasks = []
@@ -138,7 +142,6 @@ class DataManager(object):
         self.makedirs([self.DATA_DIR, self.TRAIN_DIR, self.VALIDATE_DIR])
 
         links, train_size, validate_size = await self.get_links_for_train(csv_url)
-        logging.info('Found {count} links'.format(count=len(links)))
 
         for link in links:
             dir_path = os.path.join(self.DATA_DIR, link['i_type'], link['label'])
