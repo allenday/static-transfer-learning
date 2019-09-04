@@ -89,8 +89,7 @@ class ML(DataManager):
         Train model by CSF file
         """
         self.makedirs([self.LOG_DIR, self.MODELS_DIR])
-        # TODO: enable cleanup
-        # self.cleanup([self.TRAIN_DIR, self.VALIDATE_DIR])
+        self.cleanup([self.TRAIN_DIR, self.VALIDATE_DIR])
         train_size, validate_size = await self.download_train_data(csv_url)
 
         train_datagen = self.__get_image_data_generator()
