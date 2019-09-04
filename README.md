@@ -42,7 +42,7 @@ Available variables:
 
 Docker way:
 
-    docker run --rm -v /path/to/data/dir:/usr/src/app/data static-transfer-learning python train.py --csv-url=http://tf-models.arilot.org/static-tf-models/input.csv --model-filename=mymodel.hdf5
+    docker run --rm -v `pwd`/data:/usr/src/app/data static-transfer-learning python train.py --csv-url=http://tf-models.arilot.org/static-tf-models/input.csv --model-filename=mymodel.hdf5
 
 ### Evaluate mode
 
@@ -50,7 +50,7 @@ Docker way:
 
 Docker way:
 
-    docker run --rm -v /path/to/data/dir:/usr/src/app/data static-transfer-learning python evaluate.py
+    docker run --rm -v `pwd`/data:/usr/src/app/data static-transfer-learning python evaluate.py
 
 ### Inference mode (in progress)
 
@@ -58,4 +58,4 @@ Docker way:
 
 Docker way:
 
-    docker run --rm -v /path/to/data/dir:/usr/src/app/data static-transfer-learning python inference.py --model-filename=mymodel.hdf5 --image-url=http://tf-models.arilot.org/static-tf-models/img/Embroidered_Gauze_Blouse/img_00000014.jpg
+    docker run --rm -v `pwd`/data:/usr/src/app/data static-transfer-learning python inference.py --model-filename=mymodel.hdf5 --image-url=http://tf-models.arilot.org/static-tf-models/img/Embroidered_Gauze_Blouse/img_00000014.jpg

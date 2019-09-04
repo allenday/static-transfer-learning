@@ -13,6 +13,9 @@ from datamanager import DataManager
 random.seed(1)
 np.random.seed(1)
 tf.set_random_seed(1)
+sess = tf.keras.backend.get_session()
+init = tf.global_variables_initializer()
+sess.run(init)
 os.environ['THEANO_FLAGS'] = 'dnn.conv.algo_bwd_filter=deterministic,dnn.conv.algo_bwd_data=deterministic'
 
 
@@ -46,14 +49,21 @@ class ML(DataManager):
         if not os.path.exists(model_path):
             raise ModelNotFound('Model with path {model_path} not found'.format(model_path=model_path))
 
-        return tf.keras.models.load_model(model_path)
+        model = tf.keras.models.load_model(model_path)
+
+        # Compile model for use optimizers
+        model.compile(optimizer='Adam', loss='categorical_crossentropy',
+                      metrics=['categorical_accuracy', 'accuracy'])
+
+        return model
 
     async def train(self, csv_url, model_uri):
         """
         Train model by CSF file
         """
         self.makedirs([self.LOG_DIR, self.MODELS_DIR])
-        self.cleanup([self.TRAIN_DIR, self.VALIDATE_DIR])
+        # TODO: enable cleanup
+        # self.cleanup([self.TRAIN_DIR, self.VALIDATE_DIR])
         train_size, validate_size = await self.download_train_data(csv_url)
 
         train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255, shear_range=0.2,
