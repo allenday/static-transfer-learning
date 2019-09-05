@@ -121,7 +121,7 @@ class ML(DataManager):
         Train model by CSF file
         """
         self.makedirs([self.MODELS_DIR])
-        # self.cleanup([self.TRAIN_DIR, self.VALIDATE_DIR])
+        self.cleanup([self.TRAIN_DIR, self.VALIDATE_DIR])
         train_size, validate_size = await self.download_train_data(csv_url)
 
         train_generator = self.__get_image_data_generator().flow_from_directory(
