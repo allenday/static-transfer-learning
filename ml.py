@@ -30,10 +30,9 @@ import keras
 import tensorflow as tf
 from keras import backend as K
 from keras.optimizers import Adam
-from keras import Sequential
 from keras.callbacks import TensorBoard
 from keras.engine.saving import model_from_json
-from keras.layers import Convolution2D
+from keras.models import Sequential
 from keras_preprocessing.image import ImageDataGenerator, load_img, img_to_array
 
 session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
@@ -142,9 +141,10 @@ class ML(DataManager):
         classes_count = len(train_generator.class_indices.keys())
 
         self.model = Sequential()
-        self.model.add(Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
-                                     input_shape=self.IMG_SHAPE,
-                                     kernel_initializer=keras.initializers.glorot_uniform(seed=RANDOM_SEED)))
+        self.model.add(keras.layers.Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
+                                                  input_shape=self.IMG_SHAPE,
+                                                  kernel_initializer=keras.initializers.glorot_uniform(
+                                                      seed=RANDOM_SEED)))
         # self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
         self.model.add(keras.layers.Convolution2D(32, (3, 3), activation='relu',
                                                   kernel_initializer=keras.initializers.glorot_uniform(
@@ -172,7 +172,7 @@ class ML(DataManager):
 
         self.model.fit_generator(train_generator,
                                  epochs=settings.EPOCHS,
-                                 steps_per_epoch=None,
+                                 steps_per_epoch=steps_per_epoch,
                                  validation_data=validation_generator,
                                  validation_steps=validation_steps,
                                  max_queue_size=1,
