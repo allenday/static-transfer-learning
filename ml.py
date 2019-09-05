@@ -33,7 +33,7 @@ from keras.optimizers import Adam
 from keras.callbacks import TensorBoard
 from keras.engine.saving import model_from_json
 from keras.models import Sequential
-from keras_preprocessing.image import ImageDataGenerator, load_img, img_to_array
+from keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array
 
 session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
                               inter_op_parallelism_threads=1)
