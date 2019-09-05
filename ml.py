@@ -4,11 +4,12 @@ import os
 import uuid
 import logging
 import datetime
+
+from keras.optimizers import Adam
+
 import settings
 import numpy as np
 import random as rn
-import tensorflow as tf
-from datamanager import DataManager
 
 RANDOM_SEED = 1
 
@@ -30,6 +31,8 @@ np.random.seed(RANDOM_SEED)
 # Force TensorFlow to use single thread.
 # Multiple threads are a potential source of non-reproducible results.
 # For further details, see: https://stackoverflow.com/questions/42022950/
+import tensorflow as tf
+from datamanager import DataManager
 from keras import backend as K
 import keras
 from keras import Sequential
@@ -66,6 +69,9 @@ class InvalidTestData(BaseException):
 class ML(DataManager):
     IMG_SHAPE = (settings.IMAGE_SIZE, settings.IMAGE_SIZE, 3)
     model = None
+
+    def __get_optimizer(self):
+        return Adam(lr=1e-4, decay=1e-6)
 
     def save_model(self, file_name):
         """
@@ -104,7 +110,7 @@ class ML(DataManager):
         model.load_weights(model_path_weights)
 
         # Compile model for use optimizers
-        model.compile(optimizer='Adam', loss='categorical_crossentropy',
+        model.compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
                       metrics=['categorical_accuracy', 'accuracy'])
 
         return model
@@ -155,7 +161,7 @@ class ML(DataManager):
         self.model.add(keras.layers.Dense(units=classes_count, activation='softmax',
                                           kernel_initializer=keras.initializers.glorot_uniform(seed=RANDOM_SEED)))
 
-        self.model.compile(optimizer='sgd', loss='categorical_crossentropy',
+        self.model.compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
                            metrics=['categorical_accuracy', 'accuracy'])
 
         steps_per_epoch = round(train_size) // settings.BATCH_SIZE
