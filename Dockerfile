@@ -1,6 +1,6 @@
 FROM gcr.io/deeplearning-platform-release/tf-cpu.1-14
 
-ENV PYTHONHASHSEED "0"
+ENV PYTHONHASHSEED "1"
 ENV CUDA_VISIBLE_DEVICES "-1"
 ENV TF_CUDNN_USE_AUTOTUNE "0"
 

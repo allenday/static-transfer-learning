@@ -4,13 +4,21 @@ import os
 import uuid
 import logging
 import datetime
+
+from keras.callbacks import TensorBoard
+from keras.engine.saving import model_from_json
+from keras.layers import Convolution2D
+from keras_preprocessing.image import ImageDataGenerator, load_img, img_to_array
+
 import settings
 import numpy as np
 import random as rn
 import tensorflow as tf
+import keras
 from datamanager import DataManager
+from keras import backend as K, Sequential
 
-os.environ['PYTHONHASHSEED'] = '0'
+os.environ['PYTHONHASHSEED'] = '1'
 
 # The below is necessary for starting Numpy generated random numbers
 # in a well-defined initial state.
@@ -36,10 +44,10 @@ session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
 # For further details, see:
 # https://www.tensorflow.org/api_docs/python/tf/set_random_seed
 
-tf.set_random_seed(1234)
+tf.set_random_seed(1)
 
 sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
-tf.keras.backend.set_session(sess)
+K.set_session(sess)
 
 
 class ModelNotFound(BaseException):
@@ -90,7 +98,7 @@ class ML(DataManager):
             raise ModelNotFound('Model with path {model_path} is invalid'.format(model_path=model_path))
 
         with open(model_path_json, "r") as json_file:
-            model = tf.keras.models.model_from_json(json_file.read())
+            model = model_from_json(json_file.read())
 
         model.load_weights(model_path_weights)
 
@@ -101,7 +109,7 @@ class ML(DataManager):
         return model
 
     def __get_image_data_generator(self):
-        return tf.keras.preprocessing.image.ImageDataGenerator(
+        return ImageDataGenerator(
             rescale=1. / 255,
             shear_range=0.2,
             zoom_range=0.2,
@@ -131,16 +139,16 @@ class ML(DataManager):
 
         classes_count = len(train_generator.class_indices.keys())
 
-        self.model = tf.keras.Sequential()
+        self.model = Sequential()
         self.model.add(
-            tf.keras.layers.Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
+            Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
                                           input_shape=self.IMG_SHAPE))
-        self.model.add(tf.keras.layers.MaxPooling2D(pool_size=(2, 2)))
-        self.model.add(tf.keras.layers.Convolution2D(32, (3, 3), activation='relu'))
-        self.model.add(tf.keras.layers.MaxPooling2D(pool_size=(2, 2)))
-        self.model.add(tf.keras.layers.Flatten())
-        self.model.add(tf.keras.layers.Dense(units=64, activation='relu'))
-        self.model.add(tf.keras.layers.Dense(units=classes_count, activation='softmax'))
+        self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+        self.model.add(keras.layers.Convolution2D(32, (3, 3), activation='relu'))
+        self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+        self.model.add(keras.layers.Flatten())
+        self.model.add(keras.layers.Dense(units=64, activation='relu'))
+        self.model.add(keras.layers.Dense(units=classes_count, activation='softmax'))
 
         self.model.compile(optimizer='Adam', loss='categorical_crossentropy',
                            metrics=['categorical_accuracy', 'accuracy'])
@@ -153,12 +161,12 @@ class ML(DataManager):
         if settings.TENSORBOARD_LOGS_ENABLED:
             self.makedirs(self.LOG_DIR)
             logdir = os.path.join(self.LOG_DIR, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-            tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
+            tensorboard_callback = TensorBoard(log_dir=logdir)
             callbacks.append(tensorboard_callback)
 
         self.model.fit_generator(train_generator,
                                  epochs=settings.EPOCHS,
-                                 steps_per_epoch=None,
+                                 steps_per_epoch=steps_per_epoch,
                                  validation_data=validation_generator,
                                  validation_steps=validation_steps,
                                  callbacks=callbacks)
@@ -185,9 +193,9 @@ class ML(DataManager):
             "file_path": image_tmp_path
         })
 
-        img = tf.keras.preprocessing.image.load_img(image_tmp_path,
+        img = load_img(image_tmp_path,
                                                     target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
-        img = tf.keras.preprocessing.image.img_to_array(img)
+        img = img_to_array(img)
         img = np.reshape(img, [settings.IMAGE_SIZE, settings.IMAGE_SIZE, 3])
         img = np.expand_dims(img, axis=0)
 

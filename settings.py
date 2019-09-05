@@ -3,10 +3,10 @@ from distutils.util import strtobool
 
 DATA_DIR = os.environ.get('DATA_DIR', 'data')
 HTTP_TIMEOUT = int(os.environ.get('HTTP_TIMEOUT', 120))
-DATA_LIMIT = int(os.environ.get('DATA_LIMIT', 0))
+DATA_LIMIT = int(os.environ.get('DATA_LIMIT', 500))
 IMAGE_SIZE = int(os.environ.get('IMAGE_SIZE', 150))
 BATCH_SIZE = int(os.environ.get('BATCH_SIZE', 32))
-EPOCHS = int(os.environ.get('EPOCHS', 30))
+EPOCHS = int(os.environ.get('EPOCHS', 3))
 TRAIN_PERCENTAGE = float(os.environ.get('TRAIN_PERCENTAGE', 0.9))
 DOWNLOAD_POOL_SIZE = int(os.environ.get('DOWNLOAD_POOL_SIZE', 100))
 IPFS_HOST = os.environ.get('DATA_DIR', 'https://ipfs.infura.io')
