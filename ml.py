@@ -20,7 +20,7 @@ rn.seed(1)
 
 session_conf = tf.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1, device_count={'CPU': 1})
 sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
-tf.keras.backend.set_session(sess)
+tf.compat.v1.keras.backend.set_session(sess)
 
 
 class ModelNotFound(BaseException):
@@ -92,7 +92,7 @@ class ML(DataManager):
         """
         Train model by CSF file
         """
-        self.makedirs([self.LOG_DIR, self.MODELS_DIR])
+        self.makedirs([self.MODELS_DIR])
         self.cleanup([self.TRAIN_DIR, self.VALIDATE_DIR])
         train_size, validate_size = await self.download_train_data(csv_url)
 
@@ -144,6 +144,7 @@ class ML(DataManager):
         # Define the Keras TensorBoard callback.
         callbacks = []
         if settings.TENSORBOARD_LOGS_ENABLED:
+            self.makedirs(self.LOG_DIR)
             logdir = os.path.join(self.LOG_DIR, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
             tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
             callbacks.append(tensorboard_callback)
