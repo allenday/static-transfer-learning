@@ -18,7 +18,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""
 np.random.seed(1)
 rn.seed(1)
 
-session_conf = tf.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
+session_conf = tf.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1, device_count={'CPU': 1})
 sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
 tf.keras.backend.set_session(sess)
 
@@ -104,6 +104,7 @@ class ML(DataManager):
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             seed=1,
             batch_size=settings.BATCH_SIZE,
+            interpolation='lanczos',
             class_mode='categorical')
 
         np.random.seed(1)
@@ -114,6 +115,7 @@ class ML(DataManager):
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             seed=1,
             batch_size=settings.BATCH_SIZE,
+            interpolation='lanczos',
             class_mode='categorical')
 
         classes_count = len(train_generator.class_indices.keys())
@@ -154,8 +156,6 @@ class ML(DataManager):
                                  steps_per_epoch=steps_per_epoch,
                                  validation_data=validation_generator,
                                  validation_steps=validation_steps,
-                                 shuffle=False,
-                                 max_queue_size=1,
                                  callbacks=callbacks)
 
         self.model.summary()

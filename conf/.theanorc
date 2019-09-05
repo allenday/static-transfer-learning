@@ -1,0 +1,5 @@
+[global]
+openmp = True
+OMP_NUM_THREADS = 1
+MKL_NUM_THREADS = 1
+GOTO_NUM_THREADS = 1

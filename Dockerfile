@@ -6,6 +6,9 @@ RUN pip uninstall -y Pillow
 ADD requirements.txt /usr/src/app/requirements.txt
 RUN pip install -r /usr/src/app/requirements.txt
 
+ADD conf/.theanorc /root/.theanorc
+ADD conf/.theanorc /.theanorc
+
 ADD . /usr/src/app
 
 WORKDIR /usr/src/app
