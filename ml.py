@@ -189,7 +189,7 @@ class ML(DataManager):
         logging.info('Classes: {classes}'.format(classes="; ".join(
             ['%s:%s' % (i, train_generator.class_indices[i]) for i in train_generator.class_indices.keys()])))
 
-        loss, categorical_accuracy, acc = self.model.evaluate(validation_generator, use_multiprocessing=True)
+        loss, categorical_accuracy, acc = self.model.evaluate(validation_generator)
         print("Untrained model, accuracy: {:5.2f}%".format(100 * acc))
 
         return self.save_model(model_uri)
