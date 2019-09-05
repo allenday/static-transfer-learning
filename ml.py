@@ -4,19 +4,14 @@ import os
 import uuid
 import logging
 import datetime
-
-from keras.optimizers import Adam
-
 import settings
 import numpy as np
 import random as rn
+from datamanager import DataManager
 
 RANDOM_SEED = 1
 
 os.environ['PYTHONHASHSEED'] = str(RANDOM_SEED)
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
-os.environ['TF_USE_CUDNN'] = '0'
-os.environ['THEANO_FLAGS'] = 'dnn.conv.algo_bwd_filter=deterministic,dnn.conv.algo_bwd_data=deterministic'
 
 # The below is necessary for starting core Python generated random numbers
 # in a well-defined state.
@@ -31,10 +26,10 @@ np.random.seed(RANDOM_SEED)
 # Force TensorFlow to use single thread.
 # Multiple threads are a potential source of non-reproducible results.
 # For further details, see: https://stackoverflow.com/questions/42022950/
-import tensorflow as tf
-from datamanager import DataManager
-from keras import backend as K
 import keras
+import tensorflow as tf
+from keras import backend as K
+from keras.optimizers import Adam
 from keras import Sequential
 from keras.callbacks import TensorBoard
 from keras.engine.saving import model_from_json
@@ -71,7 +66,7 @@ class ML(DataManager):
     model = None
 
     def __get_optimizer(self):
-        return Adam(lr=1e-4, decay=1e-6)
+        return Adam()
 
     def save_model(self, file_name):
         """
@@ -117,10 +112,10 @@ class ML(DataManager):
 
     def __get_image_data_generator(self):
         return ImageDataGenerator(
-            rescale=1. / 255)
-        # shear_range=0.2,
-        # zoom_range=0.2,
-        # horizontal_flip=True)
+            rescale=1. / 255,
+            shear_range=0.2,
+            zoom_range=0.2,
+            horizontal_flip=True)
 
     async def train(self, csv_url, model_uri):
         """
@@ -150,11 +145,11 @@ class ML(DataManager):
         self.model.add(Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
                                      input_shape=self.IMG_SHAPE,
                                      kernel_initializer=keras.initializers.glorot_uniform(seed=RANDOM_SEED)))
-        self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+        # self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
         self.model.add(keras.layers.Convolution2D(32, (3, 3), activation='relu',
                                                   kernel_initializer=keras.initializers.glorot_uniform(
                                                       seed=RANDOM_SEED)))
-        self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+        # self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
         self.model.add(keras.layers.Flatten())
         self.model.add(keras.layers.Dense(units=64, activation='relu',
                                           kernel_initializer=keras.initializers.glorot_uniform(seed=RANDOM_SEED)))
@@ -177,7 +172,7 @@ class ML(DataManager):
 
         self.model.fit_generator(train_generator,
                                  epochs=settings.EPOCHS,
-                                 steps_per_epoch=steps_per_epoch,
+                                 steps_per_epoch=None,
                                  validation_data=validation_generator,
                                  validation_steps=validation_steps,
                                  max_queue_size=1,
