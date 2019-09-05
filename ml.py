@@ -82,7 +82,11 @@ class ML(DataManager):
         return model
 
     def __get_image_data_generator(self):
-        return tf.keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255)
+        return tf.keras.preprocessing.image.ImageDataGenerator(
+            rescale=1. / 255,
+            shear_range=0.2,
+            zoom_range=0.2,
+            horizontal_flip=True)
 
     async def train(self, csv_url, model_uri):
         """
@@ -92,17 +96,20 @@ class ML(DataManager):
         self.cleanup([self.TRAIN_DIR, self.VALIDATE_DIR])
         train_size, validate_size = await self.download_train_data(csv_url)
 
-        train_datagen = self.__get_image_data_generator()
-        validation_datagen = self.__get_image_data_generator()
-
-        train_generator = train_datagen.flow_from_directory(
+        np.random.seed(1)
+        rn.seed(1)
+        tf.compat.v1.random.set_random_seed(1)
+        train_generator = self.__get_image_data_generator().flow_from_directory(
             self.TRAIN_DIR,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             seed=1,
             batch_size=settings.BATCH_SIZE,
             class_mode='categorical')
 
-        validation_generator = validation_datagen.flow_from_directory(
+        np.random.seed(1)
+        rn.seed(1)
+        tf.compat.v1.random.set_random_seed(1)
+        validation_generator = self.__get_image_data_generator().flow_from_directory(
             self.VALIDATE_DIR,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             seed=1,
@@ -111,6 +118,8 @@ class ML(DataManager):
 
         classes_count = len(train_generator.class_indices.keys())
 
+        np.random.seed(1)
+        rn.seed(1)
         tf.compat.v1.random.set_random_seed(1)
         self.model = tf.keras.Sequential()
         self.model.add(
@@ -127,26 +136,36 @@ class ML(DataManager):
         self.model.compile(optimizer='Adam', loss='categorical_crossentropy',
                            metrics=['categorical_accuracy', 'accuracy'])
 
-        # Define the Keras TensorBoard callback.
-        logdir = os.path.join(self.LOG_DIR, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-        tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
-
         steps_per_epoch = round(train_size) // settings.BATCH_SIZE
         validation_steps = round(validate_size) // settings.BATCH_SIZE
 
+        # Define the Keras TensorBoard callback.
+        callbacks = []
+        if settings.TENSORBOARD_LOGS_ENABLED:
+            logdir = os.path.join(self.LOG_DIR, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+            tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
+            callbacks.append(tensorboard_callback)
+
+        np.random.seed(1)
+        rn.seed(1)
         tf.compat.v1.random.set_random_seed(1)
         self.model.fit_generator(train_generator,
                                  epochs=settings.EPOCHS,
                                  steps_per_epoch=steps_per_epoch,
                                  validation_data=validation_generator,
                                  validation_steps=validation_steps,
-                                 callbacks=[tensorboard_callback])
+                                 shuffle=False,
+                                 max_queue_size=1,
+                                 callbacks=callbacks)
 
         self.model.summary()
 
         logging.info('Classes: {classes}'.format(classes="; ".join(
             ['%s:%s' % (i, train_generator.class_indices[i]) for i in train_generator.class_indices.keys()])))
 
+        np.random.seed(1)
+        rn.seed(1)
+        tf.compat.v1.random.set_random_seed(1)
         loss, categorical_accuracy, acc = self.model.evaluate(validation_generator, use_multiprocessing=True)
         print("Untrained model, accuracy: {:5.2f}%".format(100 * acc))
 
@@ -181,11 +200,7 @@ class ML(DataManager):
     async def evaluate(self, model_filename):
         self.model = self.load_model(model_filename)
 
-        validation_datagen = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255, shear_range=0.2,
-                                                                             zoom_range=0.2,
-                                                                             horizontal_flip=True)
-
-        validation_generator = validation_datagen.flow_from_directory(
+        validation_generator = self.__get_image_data_generator().flow_from_directory(
             self.VALIDATE_DIR,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             seed=1,
