@@ -4,47 +4,46 @@ import os
 import uuid
 import logging
 import datetime
-
-from keras.callbacks import TensorBoard
-from keras.engine.saving import model_from_json
-from keras.layers import Convolution2D
-from keras_preprocessing.image import ImageDataGenerator, load_img, img_to_array
-
 import settings
 import numpy as np
 import random as rn
 import tensorflow as tf
-import keras
 from datamanager import DataManager
-from keras import backend as K, Sequential
 
-os.environ['PYTHONHASHSEED'] = '1'
+os.environ['PYTHONHASHSEED'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
 # The below is necessary for starting Numpy generated random numbers
 # in a well-defined initial state.
 
-np.random.seed(1)
+np.random.seed(42)
 
 # The below is necessary for starting core Python generated random numbers
 # in a well-defined state.
 
-rn.seed(1)
+rn.seed(12345)
 
 # Force TensorFlow to use single thread.
 # Multiple threads are a potential source of non-reproducible results.
 # For further details, see: https://stackoverflow.com/questions/42022950/
 
 session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
-                              inter_op_parallelism_threads=1,
-                              allow_soft_placement=True,
-                              device_count={'CPU': 1})
+                              inter_op_parallelism_threads=1)
+
+from keras import backend as K
+import keras
+from keras import Sequential
+from keras.callbacks import TensorBoard
+from keras.engine.saving import model_from_json
+from keras.layers import Convolution2D
+from keras_preprocessing.image import ImageDataGenerator, load_img, img_to_array
 
 # The below tf.set_random_seed() will make random number generation
 # in the TensorFlow backend have a well-defined initial state.
 # For further details, see:
 # https://www.tensorflow.org/api_docs/python/tf/set_random_seed
 
-tf.set_random_seed(1)
+tf.set_random_seed(1234)
 
 sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
 K.set_session(sess)
@@ -75,10 +74,10 @@ class ML(DataManager):
             raise ModelNotLoaded('Please load model user "load_model" method')
 
         model_path = self.get_model_path(file_name)
-        model_path_weights = os.path.join(model_path, file_name)
-        model_path_json = os.path.join(model_path, 'model.json')
+        model_path_weights = model_path + '.h5'
+        model_path_json = model_path + '.json'
 
-        self.model.save_weights(model_path_weights, save_format='tf')
+        self.model.save_weights(model_path_weights)
 
         with open(model_path_json, "w") as json_file:
             json_file.write(self.model.to_json())
@@ -127,22 +126,19 @@ class ML(DataManager):
             self.TRAIN_DIR,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             batch_size=settings.BATCH_SIZE,
-            seed=1,
             class_mode='categorical')
 
         validation_generator = self.__get_image_data_generator().flow_from_directory(
             self.VALIDATE_DIR,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             batch_size=settings.BATCH_SIZE,
-            seed=1,
             class_mode='categorical')
 
         classes_count = len(train_generator.class_indices.keys())
 
         self.model = Sequential()
-        self.model.add(
-            Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
-                                          input_shape=self.IMG_SHAPE))
+        self.model.add(Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
+                                     input_shape=self.IMG_SHAPE))
         self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
         self.model.add(keras.layers.Convolution2D(32, (3, 3), activation='relu'))
         self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
@@ -194,7 +190,7 @@ class ML(DataManager):
         })
 
         img = load_img(image_tmp_path,
-                                                    target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
+                       target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
         img = img_to_array(img)
         img = np.reshape(img, [settings.IMAGE_SIZE, settings.IMAGE_SIZE, 3])
         img = np.expand_dims(img, axis=0)
