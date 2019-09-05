@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 import click
 import logging
+import settings
 
 
 @click.command()
-def evaluate():
+@click.option('--model-filename', default=settings.DEFAULT_MODEL_FILENAME, help='File name of model')
+def evaluate(model_filename):
     import asyncio
     from ml import ML
 
@@ -12,7 +14,7 @@ def evaluate():
 
     ml = ML()
 
-    total_future = asyncio.ensure_future(ml.evaluate())
+    total_future = asyncio.ensure_future(ml.evaluate(model_filename))
     loop.run_until_complete(total_future)
 
 
