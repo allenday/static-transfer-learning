@@ -10,26 +10,26 @@ import random as rn
 import tensorflow as tf
 from datamanager import DataManager
 
-os.environ['PYTHONHASHSEED'] = '0'
+RANDOM_SEED = 1
+
+os.environ['PYTHONHASHSEED'] = str(RANDOM_SEED)
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
-
-# The below is necessary for starting Numpy generated random numbers
-# in a well-defined initial state.
-
-np.random.seed(42)
+os.environ['TF_USE_CUDNN'] = '0'
+os.environ['THEANO_FLAGS'] = 'dnn.conv.algo_bwd_filter=deterministic,dnn.conv.algo_bwd_data=deterministic'
 
 # The below is necessary for starting core Python generated random numbers
 # in a well-defined state.
 
-rn.seed(12345)
+rn.seed(RANDOM_SEED)
+
+# The below is necessary for starting Numpy generated random numbers
+# in a well-defined initial state.
+
+np.random.seed(RANDOM_SEED)
 
 # Force TensorFlow to use single thread.
 # Multiple threads are a potential source of non-reproducible results.
 # For further details, see: https://stackoverflow.com/questions/42022950/
-
-session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
-                              inter_op_parallelism_threads=1)
-
 from keras import backend as K
 import keras
 from keras import Sequential
@@ -38,13 +38,15 @@ from keras.engine.saving import model_from_json
 from keras.layers import Convolution2D
 from keras_preprocessing.image import ImageDataGenerator, load_img, img_to_array
 
+session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
+                              inter_op_parallelism_threads=1)
+
 # The below tf.set_random_seed() will make random number generation
 # in the TensorFlow backend have a well-defined initial state.
 # For further details, see:
 # https://www.tensorflow.org/api_docs/python/tf/set_random_seed
 
-tf.set_random_seed(1234)
-
+tf.set_random_seed(RANDOM_SEED)
 sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
 K.set_session(sess)
 
@@ -109,10 +111,10 @@ class ML(DataManager):
 
     def __get_image_data_generator(self):
         return ImageDataGenerator(
-            rescale=1. / 255,
-            shear_range=0.2,
-            zoom_range=0.2,
-            horizontal_flip=True)
+            rescale=1. / 255)
+        # shear_range=0.2,
+        # zoom_range=0.2,
+        # horizontal_flip=True)
 
     async def train(self, csv_url, model_uri):
         """
@@ -126,27 +128,34 @@ class ML(DataManager):
             self.TRAIN_DIR,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             batch_size=settings.BATCH_SIZE,
+            seed=RANDOM_SEED,
             class_mode='categorical')
 
         validation_generator = self.__get_image_data_generator().flow_from_directory(
             self.VALIDATE_DIR,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             batch_size=settings.BATCH_SIZE,
+            seed=RANDOM_SEED,
             class_mode='categorical')
 
         classes_count = len(train_generator.class_indices.keys())
 
         self.model = Sequential()
         self.model.add(Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
-                                     input_shape=self.IMG_SHAPE))
+                                     input_shape=self.IMG_SHAPE,
+                                     kernel_initializer=keras.initializers.glorot_uniform(seed=RANDOM_SEED)))
         self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-        self.model.add(keras.layers.Convolution2D(32, (3, 3), activation='relu'))
+        self.model.add(keras.layers.Convolution2D(32, (3, 3), activation='relu',
+                                                  kernel_initializer=keras.initializers.glorot_uniform(
+                                                      seed=RANDOM_SEED)))
         self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
         self.model.add(keras.layers.Flatten())
-        self.model.add(keras.layers.Dense(units=64, activation='relu'))
-        self.model.add(keras.layers.Dense(units=classes_count, activation='softmax'))
+        self.model.add(keras.layers.Dense(units=64, activation='relu',
+                                          kernel_initializer=keras.initializers.glorot_uniform(seed=RANDOM_SEED)))
+        self.model.add(keras.layers.Dense(units=classes_count, activation='softmax',
+                                          kernel_initializer=keras.initializers.glorot_uniform(seed=RANDOM_SEED)))
 
-        self.model.compile(optimizer='Adam', loss='categorical_crossentropy',
+        self.model.compile(optimizer='sgd', loss='categorical_crossentropy',
                            metrics=['categorical_accuracy', 'accuracy'])
 
         steps_per_epoch = round(train_size) // settings.BATCH_SIZE
@@ -165,6 +174,8 @@ class ML(DataManager):
                                  steps_per_epoch=steps_per_epoch,
                                  validation_data=validation_generator,
                                  validation_steps=validation_steps,
+                                 max_queue_size=1,
+                                 shuffle=False,
                                  callbacks=callbacks)
 
         self.model.summary()
@@ -172,8 +183,8 @@ class ML(DataManager):
         logging.info('Classes: {classes}'.format(classes="; ".join(
             ['%s:%s' % (i, train_generator.class_indices[i]) for i in train_generator.class_indices.keys()])))
 
-        # loss, categorical_accuracy, acc = self.model.evaluate(validation_generator, use_multiprocessing=True)
-        # print("Untrained model, accuracy: {:5.2f}%".format(100 * acc))
+        loss, categorical_accuracy, acc = self.model.evaluate(validation_generator, use_multiprocessing=True)
+        print("Untrained model, accuracy: {:5.2f}%".format(100 * acc))
 
         return self.save_model(model_uri)
 
