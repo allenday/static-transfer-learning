@@ -1,5 +1,8 @@
 FROM gcr.io/deeplearning-platform-release/tf-cpu.1-14
 
+ENV PYTHONHASHSEED "0"
+ENV CUDA_VISIBLE_DEVICES ""
+
 RUN pip install --upgrade pip
 RUN pip uninstall -y Pillow
 

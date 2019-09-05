@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import os
+import random
 import uuid
 import logging
 import datetime
@@ -10,17 +11,32 @@ import random as rn
 import tensorflow as tf
 from datamanager import DataManager
 
-os.environ['THEANO_FLAGS'] = 'dnn.conv.algo_bwd_filter=deterministic,dnn.conv.algo_bwd_data=deterministic'
-os.environ['PYTHONHASHSEED'] = '1'
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
+# The below is necessary for starting Numpy generated random numbers
+# in a well-defined initial state.
 
-np.random.seed(1)
-rn.seed(1)
+np.random.seed(42)
 
-session_conf = tf.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1, device_count={'CPU': 1})
+# The below is necessary for starting core Python generated random numbers
+# in a well-defined state.
+
+rn.seed(12345)
+
+# Force TensorFlow to use single thread.
+# Multiple threads are a potential source of non-reproducible results.
+# For further details, see: https://stackoverflow.com/questions/42022950/
+
+session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
+                              inter_op_parallelism_threads=1)
+
+# The below tf.set_random_seed() will make random number generation
+# in the TensorFlow backend have a well-defined initial state.
+# For further details, see:
+# https://www.tensorflow.org/api_docs/python/tf/set_random_seed
+
+tf.set_random_seed(1234)
+
 sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
-tf.compat.v1.keras.backend.set_session(sess)
+tf.keras.backend.set_session(sess)
 
 
 class ModelNotFound(BaseException):
@@ -93,36 +109,23 @@ class ML(DataManager):
         Train model by CSF file
         """
         self.makedirs([self.MODELS_DIR])
-        self.cleanup([self.TRAIN_DIR, self.VALIDATE_DIR])
+        # self.cleanup([self.TRAIN_DIR, self.VALIDATE_DIR])
         train_size, validate_size = await self.download_train_data(csv_url)
 
-        np.random.seed(1)
-        rn.seed(1)
-        tf.compat.v1.random.set_random_seed(1)
         train_generator = self.__get_image_data_generator().flow_from_directory(
             self.TRAIN_DIR,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
-            seed=1,
             batch_size=settings.BATCH_SIZE,
-            interpolation='lanczos',
             class_mode='categorical')
 
-        np.random.seed(1)
-        rn.seed(1)
-        tf.compat.v1.random.set_random_seed(1)
         validation_generator = self.__get_image_data_generator().flow_from_directory(
             self.VALIDATE_DIR,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
-            seed=1,
             batch_size=settings.BATCH_SIZE,
-            interpolation='lanczos',
             class_mode='categorical')
 
         classes_count = len(train_generator.class_indices.keys())
 
-        np.random.seed(1)
-        rn.seed(1)
-        tf.compat.v1.random.set_random_seed(1)
         self.model = tf.keras.Sequential()
         self.model.add(
             tf.keras.layers.Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
@@ -134,7 +137,6 @@ class ML(DataManager):
         self.model.add(tf.keras.layers.Dense(units=64, activation='relu'))
         self.model.add(tf.keras.layers.Dense(units=classes_count, activation='softmax'))
 
-        tf.compat.v1.random.set_random_seed(1)
         self.model.compile(optimizer='Adam', loss='categorical_crossentropy',
                            metrics=['categorical_accuracy', 'accuracy'])
 
@@ -149,9 +151,6 @@ class ML(DataManager):
             tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
             callbacks.append(tensorboard_callback)
 
-        np.random.seed(1)
-        rn.seed(1)
-        tf.compat.v1.random.set_random_seed(1)
         self.model.fit_generator(train_generator,
                                  epochs=settings.EPOCHS,
                                  steps_per_epoch=steps_per_epoch,
@@ -164,9 +163,6 @@ class ML(DataManager):
         logging.info('Classes: {classes}'.format(classes="; ".join(
             ['%s:%s' % (i, train_generator.class_indices[i]) for i in train_generator.class_indices.keys()])))
 
-        np.random.seed(1)
-        rn.seed(1)
-        tf.compat.v1.random.set_random_seed(1)
         loss, categorical_accuracy, acc = self.model.evaluate(validation_generator, use_multiprocessing=True)
         print("Untrained model, accuracy: {:5.2f}%".format(100 * acc))
 
@@ -204,7 +200,6 @@ class ML(DataManager):
         validation_generator = self.__get_image_data_generator().flow_from_directory(
             self.VALIDATE_DIR,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
-            seed=1,
             batch_size=settings.BATCH_SIZE,
             class_mode='categorical')
 
