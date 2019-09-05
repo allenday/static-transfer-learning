@@ -10,6 +10,8 @@ import random as rn
 import tensorflow as tf
 from datamanager import DataManager
 
+os.environ['PYTHONHASHSEED'] = '0'
+
 # The below is necessary for starting Numpy generated random numbers
 # in a well-defined initial state.
 
@@ -25,7 +27,9 @@ rn.seed(1)
 # For further details, see: https://stackoverflow.com/questions/42022950/
 
 session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
-                              inter_op_parallelism_threads=1)
+                              inter_op_parallelism_threads=1,
+                              allow_soft_placement=True,
+                              device_count={'CPU': 1})
 
 # The below tf.set_random_seed() will make random number generation
 # in the TensorFlow backend have a well-defined initial state.
