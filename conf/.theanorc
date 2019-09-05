@@ -5,5 +5,6 @@ MKL_NUM_THREADS = 1
 GOTO_NUM_THREADS = 1
 
 [dnn.conv]
-algobwdfilter = deterministic
-algobwddata = deterministic
+algo_bwd_data=deterministic
+algo_bwd_filter=deterministic
+optimizer_excluding=conv_dnn
