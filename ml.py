@@ -1,51 +1,43 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
-
-import os
 import uuid
 import logging
 import datetime
 import settings
-import numpy as np
-import random as rn
-from datamanager import DataManager
 
-RANDOM_SEED = 1
+RANDOM_SEED = 1234
+
+import os
 
 os.environ['PYTHONHASHSEED'] = str(RANDOM_SEED)
 
-# The below is necessary for starting core Python generated random numbers
-# in a well-defined state.
+# 2. Set `python` built-in pseudo-random generator at a fixed value
+import random
 
-rn.seed(RANDOM_SEED)
+random.seed(RANDOM_SEED)
 
-# The below is necessary for starting Numpy generated random numbers
-# in a well-defined initial state.
+# 3. Set `numpy` pseudo-random generator at a fixed value
+import numpy as np
 
 np.random.seed(RANDOM_SEED)
 
-# Force TensorFlow to use single thread.
-# Multiple threads are a potential source of non-reproducible results.
-# For further details, see: https://stackoverflow.com/questions/42022950/
-import keras
+# 4. Set `tensorflow` pseudo-random generator at a fixed value
 import tensorflow as tf
-from keras import backend as K
-from keras.optimizers import Adam
-from keras.callbacks import TensorBoard
-from keras.engine.saving import model_from_json
-from keras.models import Sequential
-from keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array
-
-session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
-                              inter_op_parallelism_threads=1)
-
-# The below tf.set_random_seed() will make random number generation
-# in the TensorFlow backend have a well-defined initial state.
-# For further details, see:
-# https://www.tensorflow.org/api_docs/python/tf/set_random_seed
 
 tf.set_random_seed(RANDOM_SEED)
+
+# 5. Configure a new global `tensorflow` session
+from keras import backend as K
+
+session_conf = tf.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
 sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
 K.set_session(sess)
+
+from tensorflow.python import keras
+from tensorflow.python.keras import Sequential
+from tensorflow.python.keras.callbacks import TensorBoard
+from tensorflow.python.keras.initializers import glorot_uniform
+from tensorflow.python.keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array
+from tensorflow.python.keras.saving import model_from_json
+from datamanager import DataManager
 
 
 class ModelNotFound(BaseException):
@@ -61,11 +53,10 @@ class InvalidTestData(BaseException):
 
 
 class ML(DataManager):
-    IMG_SHAPE = (settings.IMAGE_SIZE, settings.IMAGE_SIZE, 3)
     model = None
 
     def __get_optimizer(self):
-        return Adam()
+        return 'Adam'
 
     def save_model(self, file_name):
         """
@@ -76,10 +67,10 @@ class ML(DataManager):
             raise ModelNotLoaded('Please load model user "load_model" method')
 
         model_path = self.get_model_path(file_name)
-        model_path_weights = model_path + '.h5'
-        model_path_json = model_path + '.json'
+        model_path_weights = os.path.join(model_path, file_name)
+        model_path_json = os.path.join(model_path, 'model.json')
 
-        self.model.save_weights(model_path_weights)
+        self.model.save_weights(model_path_weights, save_format='tf')
 
         with open(model_path_json, "w") as json_file:
             json_file.write(self.model.to_json())
@@ -116,52 +107,7 @@ class ML(DataManager):
             zoom_range=0.2,
             horizontal_flip=True)
 
-    async def train(self, csv_url, model_uri):
-        """
-        Train model by CSF file
-        """
-        self.makedirs([self.MODELS_DIR])
-        self.cleanup([self.TRAIN_DIR, self.VALIDATE_DIR])
-        train_size, validate_size = await self.download_train_data(csv_url)
-
-        train_generator = self.__get_image_data_generator().flow_from_directory(
-            self.TRAIN_DIR,
-            target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
-            batch_size=settings.BATCH_SIZE,
-            seed=RANDOM_SEED,
-            class_mode='categorical')
-
-        validation_generator = self.__get_image_data_generator().flow_from_directory(
-            self.VALIDATE_DIR,
-            target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
-            batch_size=settings.BATCH_SIZE,
-            seed=RANDOM_SEED,
-            class_mode='categorical')
-
-        classes_count = len(train_generator.class_indices.keys())
-
-        self.model = Sequential()
-        self.model.add(keras.layers.Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
-                                                  input_shape=self.IMG_SHAPE,
-                                                  kernel_initializer=keras.initializers.glorot_uniform(
-                                                      seed=RANDOM_SEED)))
-        # self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-        self.model.add(keras.layers.Convolution2D(32, (3, 3), activation='relu',
-                                                  kernel_initializer=keras.initializers.glorot_uniform(
-                                                      seed=RANDOM_SEED)))
-        # self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-        self.model.add(keras.layers.Flatten())
-        self.model.add(keras.layers.Dense(units=64, activation='relu',
-                                          kernel_initializer=keras.initializers.glorot_uniform(seed=RANDOM_SEED)))
-        self.model.add(keras.layers.Dense(units=classes_count, activation='softmax',
-                                          kernel_initializer=keras.initializers.glorot_uniform(seed=RANDOM_SEED)))
-
-        self.model.compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
-                           metrics=['categorical_accuracy', 'accuracy'])
-
-        steps_per_epoch = round(train_size) // settings.BATCH_SIZE
-        validation_steps = round(validate_size) // settings.BATCH_SIZE
-
+    def __get_callbacks(self):
         # Define the Keras TensorBoard callback.
         callbacks = []
         if settings.TENSORBOARD_LOGS_ENABLED:
@@ -169,22 +115,69 @@ class ML(DataManager):
             logdir = os.path.join(self.LOG_DIR, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
             tensorboard_callback = TensorBoard(log_dir=logdir)
             callbacks.append(tensorboard_callback)
+        return callbacks
+
+    async def train(self, csv_url, model_uri):
+        """
+        Train model by CSF file
+        """
+        self.makedirs([self.MODELS_DIR])
+        # self.cleanup([self.TRAIN_DIR, self.VALIDATE_DIR])
+        train_size, validate_size = await self.download_train_data(csv_url)
+
+        train_generator = self.__get_image_data_generator().flow_from_directory(
+            self.TRAIN_DIR,
+            target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
+            batch_size=settings.BATCH_SIZE,
+            seed=RANDOM_SEED,
+            shuffle=True,
+            class_mode='categorical')
+
+        validation_generator = self.__get_image_data_generator().flow_from_directory(
+            self.VALIDATE_DIR,
+            target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
+            batch_size=settings.BATCH_SIZE,
+            seed=RANDOM_SEED,
+            shuffle=True,
+            class_mode='categorical')
+
+        classes_count = len(train_generator.class_indices.keys())
+
+        self.model = Sequential()
+        self.model.add(keras.layers.Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
+                                                  input_shape=train_generator.image_shape,
+                                                  kernel_initializer=glorot_uniform(seed=RANDOM_SEED)))
+        # self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+        self.model.add(keras.layers.Convolution2D(32, (3, 3), activation='relu',
+                                                  kernel_initializer=glorot_uniform(seed=RANDOM_SEED)))
+        # self.model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+        self.model.add(keras.layers.Flatten())
+        self.model.add(keras.layers.Dense(units=64, activation='relu',
+                                          kernel_initializer=glorot_uniform(seed=RANDOM_SEED)))
+        self.model.add(keras.layers.Dense(units=classes_count, activation='softmax',
+                                          kernel_initializer=glorot_uniform(seed=RANDOM_SEED)))
+
+        self.model.compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
+                           metrics=['accuracy'])
+
+        steps_per_epoch = round(train_size) // settings.BATCH_SIZE
+        validation_steps = round(validate_size) // settings.BATCH_SIZE
 
         self.model.fit_generator(train_generator,
                                  epochs=settings.EPOCHS,
                                  steps_per_epoch=steps_per_epoch,
                                  validation_data=validation_generator,
                                  validation_steps=validation_steps,
-                                 max_queue_size=1,
                                  shuffle=False,
-                                 callbacks=callbacks)
+                                 max_queue_size=1,
+                                 callbacks=self.__get_callbacks())
 
         self.model.summary()
 
         logging.info('Classes: {classes}'.format(classes="; ".join(
             ['%s:%s' % (i, train_generator.class_indices[i]) for i in train_generator.class_indices.keys()])))
 
-        loss, categorical_accuracy, acc = self.model.evaluate(validation_generator)
+        loss, acc = self.model.evaluate(validation_generator)
         print("Untrained model, accuracy: {:5.2f}%".format(100 * acc))
 
         return self.save_model(model_uri)
