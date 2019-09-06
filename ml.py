@@ -63,7 +63,7 @@ class ML(DataManager):
         model.save_weights(model_path_weights, save_format='tf')
 
         with open(model_path_json, "w") as json_file:
-            json_file.write(model.to_json())
+            json_file.write(model.to_json(sort_keys=True))
 
         logging.info('Model saved into {model_path}'.format(model_path=model_path))
         return model_path
@@ -132,16 +132,18 @@ class ML(DataManager):
         model = tf.keras.Sequential()
         model.add(tf.keras.layers.Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
                                                 input_shape=train_generator.image_shape,
-                                                kernel_initializer=tf.keras.initializers.zeros()))
+                                                kernel_initializer=tf.keras.initializers.glorot_uniform(
+                                                    seed=RANDOM_SEED)))
         # model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
         model.add(tf.keras.layers.Convolution2D(32, (3, 3), activation='relu',
-                                                kernel_initializer=tf.keras.initializers.zeros()))
+                                                kernel_initializer=tf.keras.initializers.glorot_uniform(
+                                                    seed=RANDOM_SEED)))
         # model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
         model.add(tf.keras.layers.Flatten())
         model.add(tf.keras.layers.Dense(units=64, activation='relu',
-                                        kernel_initializer=tf.keras.initializers.zeros()))
+                                        kernel_initializer=tf.keras.initializers.glorot_uniform(seed=RANDOM_SEED)))
         model.add(tf.keras.layers.Dense(units=classes_count, activation='softmax',
-                                        kernel_initializer=tf.keras.initializers.zeros()))
+                                        kernel_initializer=tf.keras.initializers.glorot_uniform(seed=RANDOM_SEED)))
 
         model.compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
                       metrics=['accuracy'])
