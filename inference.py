@@ -25,5 +25,5 @@ def inference(image_url, model_filename):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.ERROR)
     inference()

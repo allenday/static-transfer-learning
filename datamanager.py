@@ -5,7 +5,6 @@ import csv
 import os
 import logging
 import shutil
-
 import ipfsapi
 import settings
 import async_timeout
@@ -84,7 +83,6 @@ class DataManager(object):
         raw_csv = await self.fetch(csv_url)
         csv_lines = [i.decode('utf8') for i in raw_csv.splitlines()]
 
-        random.seed(1)
         random.shuffle(csv_lines)
 
         reader = csv.reader(csv_lines, delimiter=',', quotechar='|')
