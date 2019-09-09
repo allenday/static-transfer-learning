@@ -1,3 +1,4 @@
+import json
 import os
 import uuid
 import logging
@@ -48,7 +49,7 @@ class ML(DataManager):
     def __get_optimizer(self):
         return 'Adam'
 
-    def save_model(self, model, file_name):
+    def save_model(self, model, class_indices, file_name):
         """
         Save model to local file
         """
@@ -59,11 +60,15 @@ class ML(DataManager):
         model_path = self.get_model_path(file_name)
         model_path_weights = os.path.join(model_path, file_name)
         model_path_json = os.path.join(model_path, 'model.json')
+        model_class_indices = os.path.join(model_path, 'class_indices.json')
 
         model.save_weights(model_path_weights, save_format='tf')
 
         with open(model_path_json, "w") as json_file:
             json_file.write(model.to_json(sort_keys=True))
+
+        with open(model_class_indices, "w") as json_file:
+            json_file.write(json.dumps(list(class_indices.keys()), sort_keys=True))
 
         logging.info('Model saved into {model_path}'.format(model_path=model_path))
         return model_path
@@ -75,6 +80,7 @@ class ML(DataManager):
         model_path = self.get_model_path(file_name)
         model_path_weights = os.path.join(model_path, file_name)
         model_path_json = os.path.join(model_path, 'model.json')
+        model_class_indices = os.path.join(model_path, 'class_indices.json')
 
         if not os.path.exists(model_path) or not os.path.exists(model_path_json):
             raise ModelNotFound('Model with path {model_path} is invalid'.format(model_path=model_path))
@@ -84,11 +90,14 @@ class ML(DataManager):
 
         model.load_weights(model_path_weights)
 
+        with open(model_class_indices, "r") as json_file:
+            class_indices = json.load(json_file)
+
         # Compile model for use optimizers
         model.compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
                       metrics=['categorical_accuracy', 'accuracy'])
 
-        return model
+        return model, class_indices
 
     def __get_image_data_generator(self):
         return tf.keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255)
@@ -168,12 +177,12 @@ class ML(DataManager):
         loss, acc = model.evaluate(validation_generator)
         print("Untrained model, accuracy: {:5.2f}%".format(100 * acc))
 
-        return self.save_model(model, model_uri)
+        return self.save_model(model, train_generator.class_indices, model_uri)
 
-    async def inference(self, image_url, model_uri, output_uri):
+    async def inference(self, image_url, model_filename, output_uri):
         self.makedirs([self.TMP_DIR])
 
-        model = self.load_model(model_uri)
+        model, class_indices = self.load_model(model_filename)
 
         image_tmp_path = os.path.join(self.TMP_DIR, uuid.uuid1().__str__() + ".jpg")
 
@@ -188,16 +197,18 @@ class ML(DataManager):
         img = np.reshape(img, [settings.IMAGE_SIZE, settings.IMAGE_SIZE, 3])
         img = np.expand_dims(img, axis=0)
 
-        result = model.predict_classes(img)
+        os.remove(image_tmp_path)
+
+        result = {}
+        for idx, res in enumerate(list(model.predict(img)[0])):
+            result[class_indices[idx]] = res
 
         print(result)
 
-        os.remove(image_tmp_path)
-
         return result
 
-    async def evaluate(self, model_filename):
-        model = self.load_model(model_filename)
+    async def evaluate(self, model_filename=settings.DEFAULT_MODEL_FILENAME):
+        model, class_indices = self.load_model(model_filename)
 
         validation_generator = self.__get_image_data_generator().flow_from_directory(
             self.VALIDATE_DIR,

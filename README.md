@@ -52,7 +52,7 @@ Docker way:
 
     docker run --rm -v `pwd`/data:/usr/src/app/data static-transfer-learning python evaluate.py --model-filename=mymodel
 
-### Inference mode (in progress)
+### Inference mode
 
     python inference.py --model-filename=mymodel --image-url=http://tf-models.arilot.org/static-tf-models/img/Embroidered_Gauze_Blouse/img_00000014.jpg
 
