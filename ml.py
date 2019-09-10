@@ -3,29 +3,28 @@ import os
 import uuid
 import logging
 import datetime
+
 import settings
 
-RANDOM_SEED = 1234
-
-os.environ['PYTHONHASHSEED'] = str(RANDOM_SEED)
+os.environ['PYTHONHASHSEED'] = str(settings.RANDOM_SEED)
 import random
 
-random.seed(RANDOM_SEED)
+random.seed(settings.RANDOM_SEED)
 
 import numpy as np
 
-np.random.seed(RANDOM_SEED)
+np.random.seed(settings.RANDOM_SEED)
 np.set_printoptions(precision=4)
 
 import tensorflow as tf
 
 tf.reset_default_graph()
-tf.set_random_seed(RANDOM_SEED)
+tf.set_random_seed(settings.RANDOM_SEED)
 
 session_conf = tf.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
 sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
 tf.keras.backend.set_session(sess)
-tf.set_random_seed(RANDOM_SEED)
+tf.set_random_seed(settings.RANDOM_SEED)
 
 from tensorflow.python.keras.saving import model_from_json
 from datamanager import DataManager
@@ -43,22 +42,40 @@ class InvalidTestData(BaseException):
     pass
 
 
+class ErrorDownloadImage(BaseException):
+    pass
+
+
+class ErrorProcessingImage(BaseException):
+    pass
+
+
 class ML(DataManager):
-    model = None
+    models = {}
+    READY = 'ready'
+    NEW = 'new'
+    NOT_FOUND = 'not_found'
+    IN_PROGRESS = 'in_progress'
+    DONE = 'done'
 
     def __get_optimizer(self):
         return 'Adam'
 
-    def save_model(self, model, class_indices, file_name):
+    def get_model_status(self, model_name):
+        model = self.models.get(model_name)
+        if model:
+            return model.get('status')
+
+        return self.NOT_FOUND
+
+    def save_model(self, model, class_indices, csv_url):
         """
         Save model to local file
         """
 
-        if not model:
-            raise ModelNotLoaded('Please load model user "load_model" method')
-
-        model_path = self.get_model_path(file_name)
-        model_path_weights = os.path.join(model_path, file_name)
+        model_name = self.get_model_name(csv_url)
+        model_path = self.get_model_path(model_name)
+        model_path_weights = os.path.join(model_path, 'model')
         model_path_json = os.path.join(model_path, 'model.json')
         model_class_indices = os.path.join(model_path, 'class_indices.json')
 
@@ -70,34 +87,52 @@ class ML(DataManager):
         with open(model_class_indices, "w") as json_file:
             json_file.write(json.dumps(list(class_indices.keys()), sort_keys=True))
 
+        self.models[model_name] = {
+            'model': model,
+            'class_indices': class_indices,
+            'status': self.READY
+        }
+
         logging.info('Model saved into {model_path}'.format(model_path=model_path))
+
         return model_path
 
-    def load_model(self, file_name=settings.DEFAULT_MODEL_FILENAME):
+    def load_model(self, model_name):
         """
         Load model from local file
         """
-        model_path = self.get_model_path(file_name)
-        model_path_weights = os.path.join(model_path, file_name)
+
+        model = self.models.get(model_name)
+
+        if model and model.get('model') and model.get('class_indices') and model.get('status') == self.READY:
+            return model
+        else:
+            model = self.models[model_name] = {}
+
+        model_path = self.get_model_path(model_name)
+        model_path_weights = os.path.join(model_path, 'model')
         model_path_json = os.path.join(model_path, 'model.json')
         model_class_indices = os.path.join(model_path, 'class_indices.json')
 
-        if not os.path.exists(model_path) or not os.path.exists(model_path_json):
+        if not os.path.exists(model_path) or not os.path.exists(model_path_json) or not os.path.exists(
+                model_class_indices):
             raise ModelNotFound('Model with path {model_path} is invalid'.format(model_path=model_path))
 
-        with open(model_path_json, "r") as json_file:
-            model = model_from_json(json_file.read())
-
-        model.load_weights(model_path_weights)
-
         with open(model_class_indices, "r") as json_file:
-            class_indices = json.load(json_file)
+            model['class_indices'] = json.load(json_file)
+
+        with open(model_path_json, "r") as json_file:
+            model['model'] = model_from_json(json_file.read())
+
+        model['model'].load_weights(model_path_weights)
 
         # Compile model for use optimizers
-        model.compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
-                      metrics=['categorical_accuracy', 'accuracy'])
+        model['model'].compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
+                               metrics=['categorical_accuracy', 'accuracy'])
 
-        return model, class_indices
+        model['status'] = self.READY
+
+        return model
 
     def __get_image_data_generator(self):
         return tf.keras.preprocessing.image.ImageDataGenerator(rescale=1. / 255)
@@ -112,27 +147,33 @@ class ML(DataManager):
             callbacks.append(tensorboard_callback)
         return callbacks
 
-    async def train(self, csv_url, model_uri):
+    async def train_local(self, csv_url):
         """
-        Train model by CSF file
+        Train model by CSV file
         """
         self.makedirs([self.MODELS_DIR])
-        # self.cleanup([self.TRAIN_DIR, self.VALIDATE_DIR])
-        train_size, validate_size = await self.download_train_data(csv_url)
+
+        model_name = self.get_model_name(csv_url)
+
+        self.models[model_name] = {
+            'status': self.IN_PROGRESS
+        }
+
+        train_dir, validate_dir, train_size, validate_size = await self.download_train_data(csv_url)
 
         train_generator = self.__get_image_data_generator().flow_from_directory(
-            self.TRAIN_DIR,
+            train_dir,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             batch_size=settings.BATCH_SIZE,
-            seed=RANDOM_SEED,
+            seed=settings.RANDOM_SEED,
             shuffle=True,
             class_mode='categorical')
 
         validation_generator = self.__get_image_data_generator().flow_from_directory(
-            self.VALIDATE_DIR,
+            validate_dir,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             batch_size=settings.BATCH_SIZE,
-            seed=RANDOM_SEED,
+            seed=settings.RANDOM_SEED,
             shuffle=True,
             class_mode='categorical')
 
@@ -142,17 +183,19 @@ class ML(DataManager):
         model.add(tf.keras.layers.Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
                                                 input_shape=train_generator.image_shape,
                                                 kernel_initializer=tf.keras.initializers.glorot_uniform(
-                                                    seed=RANDOM_SEED)))
+                                                    seed=settings.RANDOM_SEED)))
         # model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
         model.add(tf.keras.layers.Convolution2D(32, (3, 3), activation='relu',
                                                 kernel_initializer=tf.keras.initializers.glorot_uniform(
-                                                    seed=RANDOM_SEED)))
+                                                    seed=settings.RANDOM_SEED)))
         # model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
         model.add(tf.keras.layers.Flatten())
         model.add(tf.keras.layers.Dense(units=64, activation='relu',
-                                        kernel_initializer=tf.keras.initializers.glorot_uniform(seed=RANDOM_SEED)))
+                                        kernel_initializer=tf.keras.initializers.glorot_uniform(
+                                            seed=settings.RANDOM_SEED)))
         model.add(tf.keras.layers.Dense(units=classes_count, activation='softmax',
-                                        kernel_initializer=tf.keras.initializers.glorot_uniform(seed=RANDOM_SEED)))
+                                        kernel_initializer=tf.keras.initializers.glorot_uniform(
+                                            seed=settings.RANDOM_SEED)))
 
         model.compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
                       metrics=['accuracy'])
@@ -169,52 +212,61 @@ class ML(DataManager):
                             max_queue_size=1,
                             callbacks=self.__get_callbacks())
 
-        model.summary()
+        return self.save_model(model, train_generator.class_indices, csv_url)
 
-        logging.info('Classes: {classes}'.format(classes="; ".join(
-            ['%s:%s' % (i, train_generator.class_indices[i]) for i in train_generator.class_indices.keys()])))
+    async def train(self, csv_url, model_url):
+        """
+        Train method wrapper for support external storages for model,
+        like GCS and IPFS
+        
+        TODO: add GCS and IPFS support
+        """
 
-        loss, acc = model.evaluate(validation_generator)
-        print("Untrained model, accuracy: {:5.2f}%".format(100 * acc))
+        model_filename = os.path.basename(model_url)
 
-        return self.save_model(model, train_generator.class_indices, model_uri)
+        model_path = await self.train_local(csv_url)
 
-    async def inference(self, image_url, model_filename, output_uri):
+        return model_path
+
+    async def inference_local(self, image_url, model_name):
         self.makedirs([self.TMP_DIR])
 
-        model, class_indices = self.load_model(model_filename)
+        model = self.load_model(model_name)
 
         image_tmp_path = os.path.join(self.TMP_DIR, uuid.uuid1().__str__() + ".jpg")
 
-        await self.download_file({
+        download_result = await self.download_file({
             "url": image_url,
             "file_path": image_tmp_path
         })
+        if not download_result:
+            raise ErrorDownloadImage('Error download image by url "{url}"'.format(url=image_url))
 
-        img = tf.keras.preprocessing.image.load_img(image_tmp_path,
-                                                    target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
-        img = tf.keras.preprocessing.image.img_to_array(img)
-        img = np.reshape(img, [settings.IMAGE_SIZE, settings.IMAGE_SIZE, 3])
-        img = np.expand_dims(img, axis=0)
+        try:
+            img = tf.keras.preprocessing.image.load_img(image_tmp_path,
+                                                        target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
+            img = tf.keras.preprocessing.image.img_to_array(img)
+            img = np.reshape(img, [settings.IMAGE_SIZE, settings.IMAGE_SIZE, 3])
+            img = np.expand_dims(img, axis=0)
+
+            result = {}
+            for idx, res in enumerate(list(model['model'].predict(img)[0])):
+                result[model['class_indices'][idx]] = round(float(res), 2)
+        except Exception as exc:
+            logging.error(str(exc))
+            raise ErrorProcessingImage('Error processing image by url "{url}"'.format(url=image_url))
 
         os.remove(image_tmp_path)
 
-        result = {}
-        for idx, res in enumerate(list(model.predict(img)[0])):
-            result[class_indices[idx]] = res
-
-        print(result)
-
         return result
 
-    async def evaluate(self, model_filename=settings.DEFAULT_MODEL_FILENAME):
-        model, class_indices = self.load_model(model_filename)
+    async def inference(self, image_url, model_url):
+        """
+        TODO: add GCS and IPFS support
+        """
 
-        validation_generator = self.__get_image_data_generator().flow_from_directory(
-            self.VALIDATE_DIR,
-            target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
-            batch_size=settings.BATCH_SIZE,
-            class_mode='categorical')
+        model_filename = os.path.basename(model_url)
 
-        loss, categorical_accuracy, acc = model.evaluate(validation_generator, use_multiprocessing=True)
-        print("Restored model, accuracy: {:5.2f}%".format(100 * acc))
+        model_path = await self.inference_local(image_url, model_filename)
+
+        return model_path
