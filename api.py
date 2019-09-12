@@ -1,24 +1,14 @@
-import asyncio
 import json
-import settings
 import logging
-from aiojobs.aiohttp import setup, spawn
+import settings
+from aiohttp import web
+from bgtask import BackgroundTask
+from aiohttp_swagger import setup_swagger
 from aiohttp.client_exceptions import InvalidURL
 from ml import ML, ModelNotFound, ErrorDownloadImage, ErrorProcessingImage
-from aiohttp import web
-from aiohttp_swagger import setup_swagger
 
 m = ML()
-
-
-def run(corofn, *args):
-    loop = asyncio.new_event_loop()
-    try:
-        coro = corofn(*args)
-        asyncio.set_event_loop(loop)
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+bgt = BackgroundTask()
 
 
 async def train(request):
@@ -59,7 +49,9 @@ async def train(request):
     status = m.get_model_status(model_name)
 
     if status == m.NOT_FOUND:
-        await spawn(request, m.train(**data))
+        # coro = m.train(data['csv_url'], data.get('model_url'))
+        await bgt.run(m.train, [data['csv_url'], data.get('model_url')])
+
         status = m.NEW
 
     return web.Response(body=json.dumps({
@@ -131,7 +123,6 @@ app = web.Application()
 app.router.add_route('POST', "/train", train)
 app.router.add_route('POST', "/inference", inference)
 
-setup(app, limit=None, pending_limit=None)
 setup_swagger(app)
 
 web.run_app(app, host=settings.API_HOST, port=settings.API_PORT)

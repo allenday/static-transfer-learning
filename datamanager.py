@@ -25,7 +25,6 @@ class DataManager(object):
 
     def __init__(self):
         self.ipfs_client = ipfsapi.connect(settings.IPFS_HOST, settings.IPFS_PORT)
-        self.pool = AioPool(size=settings.DOWNLOAD_POOL_SIZE)
 
     def get_model_name(self, url):
         m = hashlib.sha1()
@@ -169,7 +168,8 @@ class DataManager(object):
                 })
 
         if tasks:
-            await self.pool.map(self.download_file, tasks)
+            pool = AioPool(size=settings.DOWNLOAD_POOL_SIZE)
+            await pool.map(self.download_file, tasks)
 
         logging.info('Data downloaded ({count} files)'.format(count=len(tasks)))
 

@@ -209,7 +209,7 @@ class ML(DataManager):
                             validation_data=validation_generator,
                             validation_steps=validation_steps,
                             shuffle=False,
-                            # max_queue_size=1,
+                            max_queue_size=1,
                             callbacks=self.__get_callbacks())
 
         return self.save_model(model, train_generator.class_indices, csv_url)
