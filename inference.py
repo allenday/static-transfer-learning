@@ -5,6 +5,7 @@ import logging
 import settings
 
 
+
 @click.command()
 @click.option('--image-url',
               default=settings.DEFAULT_TEST_IMG_URL,
