@@ -111,7 +111,7 @@ Available variables:
 | DATA_LIMIT   |  `0`          | Max elements per label. If value is `0`, If the value is 0, then the minimum available value from all labels will be selected |
 | IMAGE_SIZE   |  `150`        | Width and height of the picture for cropping |
 | BATCH_SIZE   |  `32`         | Number of training samples to work through before the model’s internal parameters are updated |
-| EPOCHS       |  `67`         | Hyperparameter of gradient descent that controls the number of complete passes through the training dataset |
+| EPOCHS       |  `30`         | Hyperparameter of gradient descent that controls the number of complete passes through the training dataset |
 | TRAIN_PERCENTAGE | `0.9`     | Proportion of data distribution for training and validation. `0.9` means that 90% will be given for training, and 10% for training |
 | DOWNLOAD_POOL_SIZE | `100`   | Size of AioPool: how many concurrent tasks can work when loading images from CSV |
 | IPFS_HOST     | `https://ipfs.infura.io` | Address of IPFS endpoint. Infura public endpoint by default |

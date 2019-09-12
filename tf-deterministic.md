@@ -54,7 +54,7 @@ Example:
                                                 seed=RANDOM_SEED)))  # <<-- This
                                                 
                                                 
-* Disable **shuffle** and set `max_queue_size=1` for `fit_generator`
+* Disable **shuffle** for `fit_generator`
 
 Example:
 
@@ -64,5 +64,4 @@ Example:
                         validation_data=validation_generator,
                         validation_steps=validation_steps,
                         shuffle=False,     # <<-- This
-                        max_queue_size=1,  # <<-- And this
                         callbacks=[])

@@ -49,9 +49,7 @@ async def train(request):
     status = m.get_model_status(model_name)
 
     if status == m.NOT_FOUND:
-        # coro = m.train(data['csv_url'], data.get('model_url'))
         await bgt.run(m.train, [data['csv_url'], data.get('model_url')])
-
         status = m.NEW
 
     return web.Response(body=json.dumps({
