@@ -106,8 +106,6 @@ class ML(DataManager):
 
         if model and model.get('model') and model.get('class_indices') and model.get('status') == self.READY:
             return model
-        else:
-            model = self.models[model_name] = {}
 
         model_path = self.get_model_path(model_name)
         model_path_weights = os.path.join(model_path, 'model')
@@ -117,6 +115,8 @@ class ML(DataManager):
         if not os.path.exists(model_path) or not os.path.exists(model_path_json) or not os.path.exists(
                 model_class_indices):
             raise ModelNotFound('Model with path {model_path} is invalid'.format(model_path=model_path))
+
+        model = self.models[model_name] = {}
 
         with open(model_class_indices, "r") as json_file:
             model['class_indices'] = json.load(json_file)
