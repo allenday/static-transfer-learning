@@ -148,7 +148,7 @@ class DataManager(object):
         model_name = self.get_model_name(csv_url)
 
         train_dir = os.path.join(self.TRAIN_DIR, model_name)
-        validate_dir = os.path.join(self.TRAIN_DIR, model_name)
+        validate_dir = os.path.join(self.VALIDATE_DIR, model_name)
 
         self.cleanup([train_dir, validate_dir])
 
