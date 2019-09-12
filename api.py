@@ -1,5 +1,4 @@
 import asyncio
-import concurrent.futures
 import json
 import settings
 import logging
@@ -60,10 +59,7 @@ async def train(request):
     status = m.get_model_status(model_name)
 
     if status == m.NOT_FOUND:
-        # spawn(request, m.train(**data))
-        loop = asyncio.get_event_loop()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            await loop.run_in_executor(executor, run, m.train, data['csv_url'], data.get('model_url'))
+        await spawn(request, m.train(**data))
         status = m.NEW
 
     return web.Response(body=json.dumps({
