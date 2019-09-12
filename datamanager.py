@@ -90,6 +90,7 @@ class DataManager(object):
         raw_csv = await self.fetch(csv_url)
         csv_lines = [i.decode('utf8') for i in raw_csv.splitlines()]
 
+        random.seed(settings.RANDOM_SEED)
         random.shuffle(csv_lines)
 
         reader = csv.reader(csv_lines, delimiter=',', quotechar='|')
@@ -149,7 +150,7 @@ class DataManager(object):
         train_dir = os.path.join(self.TRAIN_DIR, model_name)
         validate_dir = os.path.join(self.VALIDATE_DIR, model_name)
 
-        self.cleanup([train_dir, validate_dir])
+        # self.cleanup([train_dir, validate_dir])
 
         links, train_size, validate_size = await self.get_links_for_train(csv_url)
 
