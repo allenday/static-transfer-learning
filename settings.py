@@ -1,4 +1,5 @@
 import os
+from distutils.util import strtobool
 
 DATA_DIR = os.environ.get('DATA_DIR', 'data')
 HTTP_TIMEOUT = int(os.environ.get('HTTP_TIMEOUT', 120))
@@ -15,3 +16,5 @@ DEFAULT_INPUT_CSV_URL = os.environ.get('DEFAULT_INPUT_CSV_URL',
 DEFAULT_MODEL_FILENAME = os.environ.get('DEFAULT_MODEL_FILENAME', 'default')
 DEFAULT_TEST_IMG_URL = os.environ.get('DEFAULT_TEST_IMG_URL',
                                       'http://tf-models.arilot.org/static-tf-models/img/Abstract-Patterned_Blouse/img_00000049.jpg')
+
+TENSORBOARD_LOGS_ENABLED = strtobool(os.environ.get('TENSORBOARD_LOGS', 'false'))
