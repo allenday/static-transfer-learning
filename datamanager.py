@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+import hashlib
 import random
 import csv
 import os
@@ -24,7 +25,11 @@ class DataManager(object):
 
     def __init__(self):
         self.ipfs_client = ipfsapi.connect(settings.IPFS_HOST, settings.IPFS_PORT)
-        self.pool = AioPool(size=settings.DOWNLOAD_POOL_SIZE)
+
+    def get_model_name(self, url):
+        m = hashlib.sha1()
+        m.update(url.encode('utf-8'))
+        return m.hexdigest()
 
     def __ipfs_save(self, file_path):
         return self.ipfs_client.add(file_path)
@@ -69,10 +74,12 @@ class DataManager(object):
         except Exception as exc:
             logging.warning("Error downloading file {url}: {exc}".format(url=url, exc=str(exc)))
             os.remove(file_path)
+            return False
 
         if not os.stat(file_path).st_size:
             logging.warning("File {file_path} is empty".format(file_path=file_path))
             os.remove(file_path)
+            return False
 
         return True
 
@@ -83,6 +90,7 @@ class DataManager(object):
         raw_csv = await self.fetch(csv_url)
         csv_lines = [i.decode('utf8') for i in raw_csv.splitlines()]
 
+        random.seed(settings.RANDOM_SEED)
         random.shuffle(csv_lines)
 
         reader = csv.reader(csv_lines, delimiter=',', quotechar='|')
@@ -137,12 +145,17 @@ class DataManager(object):
         tasks = []
         created_label_dirs = []
 
-        self.makedirs([self.DATA_DIR, self.TRAIN_DIR, self.VALIDATE_DIR])
+        model_name = self.get_model_name(csv_url)
+
+        train_dir = os.path.join(self.TRAIN_DIR, model_name)
+        validate_dir = os.path.join(self.VALIDATE_DIR, model_name)
+
+        # self.cleanup([train_dir, validate_dir])
 
         links, train_size, validate_size = await self.get_links_for_train(csv_url)
 
         for link in links:
-            dir_path = os.path.join(self.DATA_DIR, link['i_type'], link['label'])
+            dir_path = os.path.join(self.DATA_DIR, link['i_type'], model_name, link['label'])
             file_path = os.path.join(dir_path, link['file_name'])
 
             if dir_path not in created_label_dirs:
@@ -156,8 +169,9 @@ class DataManager(object):
                 })
 
         if tasks:
-            await self.pool.map(self.download_file, tasks)
+            pool = AioPool(size=settings.DOWNLOAD_POOL_SIZE)
+            await pool.map(self.download_file, tasks)
 
         logging.info('Data downloaded ({count} files)'.format(count=len(tasks)))
 
-        return train_size, validate_size
+        return train_dir, validate_dir, train_size, validate_size
