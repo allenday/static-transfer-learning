@@ -2,9 +2,27 @@
 
 ## Quick Start
 
+
+### Run self-hosted
+
     docker-compose up -d
     
 Please open Swagger by http://localhost:8080/api/doc
+
+### Public endpoint
+
+you can use deployed version http://34.90.202.123/api/doc (firewall rule in GCP is required)
+
+Example model id: `507a0a9ebc0e9eadb5b45a0b9db5a826377f5356` (based on http://tf-models.arilot.org/static-tf-models/input.csv)
+
+Example request:
+
+
+    curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d '{ \ 
+       "image_url": "https://sewoverit.co.uk/wp-content/uploads/2015/08/Anderson-Blouse-4.jpg", \ 
+       "model_url": "507a0a9ebc0e9eadb5b45a0b9db5a826377f5356" \ 
+     }' 'http://34.90.202.123/inference'
+
 
 ## Rest API
 
