@@ -26,6 +26,8 @@ sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
 tf.keras.backend.set_session(sess)
 tf.set_random_seed(settings.RANDOM_SEED)
 
+graph = tf.get_default_graph()
+
 from tensorflow.python.keras.saving import model_from_json
 from datamanager import DataManager
 
@@ -250,7 +252,11 @@ class ML(DataManager):
             img = np.expand_dims(img, axis=0)
 
             result = {}
-            for idx, res in enumerate(list(model['model'].predict(img)[0])):
+
+            with graph.as_default():
+                y = model['model'].predict(img)
+
+            for idx, res in enumerate(list(y[0])):
                 result[model['class_indices'][idx]] = round(float(res), 2)
         except Exception as exc:
             logging.error(str(exc))
