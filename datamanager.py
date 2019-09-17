@@ -150,7 +150,8 @@ class DataManager(object):
         train_dir = os.path.join(self.TRAIN_DIR, model_name)
         validate_dir = os.path.join(self.VALIDATE_DIR, model_name)
 
-        # self.cleanup([train_dir, validate_dir])
+        self.cleanup([train_dir, validate_dir])
+        self.makedirs([train_dir, validate_dir])
 
         links, train_size, validate_size = await self.get_links_for_train(csv_url)
 
