@@ -11,6 +11,14 @@ Please open Swagger by http://localhost:8080/api/doc
 ### Train mode
 
     POST /train
+    
+Example:
+```sh
+$ cat in.json 
+{"csv_url": "https://storage.googleapis.com/some-bucket/some.csv"}
+$ Y=`cat in.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$Y" http://localhost:8080/train
+{"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "new"}
+```
 
 #### Arguments
 **csv_url** - URL of CSV file in format:
