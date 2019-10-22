@@ -18,6 +18,9 @@ $ cat in.json
 {"csv_url": "https://storage.googleapis.com/some-bucket/some.csv"}
 $ Y=`cat in.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$Y" http://localhost:8080/train
 {"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "new"}
+# you can continue to issue the same command while training happens. you'll get an "in_progress" response.
+$ !!
+{"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "in_progress"}
 ```
 
 #### Arguments
