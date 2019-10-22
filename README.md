@@ -1,5 +1,30 @@
 # static-transfer-learning
 
+This project contains a Dockerized web service that: 
+
+1. constructs a transfer-learning model based on a set of (image,label) pairs, and 
+2. labels images based on the constructed model
+
+The model is produced deterministically. Cryptographic hashes are produced for all inputs and outputs to ensure reproducibility and auditability.
+
+## Motivation
+
+When building a machine-learning system, researchers often allocate more attention to:
+
+1. the novelty of methods employed, and
+2. the performance of the system on a benchmark, than they do to (3) reproducibility of results
+
+While this is the fastest way to publish results, the trade-off is that the productivity of the research community as a whole is reduced, as peers are unable to reproduce and assess one another's findings. 
+
+Even more troubling is that systems built without reproducibility in mind are sometimes deployed to production environments. Business decisions are made based on ML system outputs, but results of decisions are inconsistent across trials because the ML systems are non-deterministic.
+
+Non-determinism enters ML systems in at least two ways:
+
+1. system initialization conditions aren't documented, and 
+2. systems incorporate sources of randomness as part of their initialization process
+
+This project demonstrates the utility of an ML system in which randomness is excluded from the build process.
+
 ## Quick Start
 
     docker-compose up -d
