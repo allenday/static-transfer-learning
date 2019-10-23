@@ -57,18 +57,11 @@ async def train(request, *args):
             description: Bad request
     """
 
-    data = await request.json()
-
-    for key in ['csv_url']:
-        if not data.get(key):
-            return web.Response(body='Key {key} is required'.format(key=key), status=400)
-
-    model_name = m.get_model_name(data['csv_url'])
-
+    model_name = m.get_model_name(request['csv_url'])
     status = m.get_model_status(model_name)
 
     if status == m.NOT_FOUND:
-        await bgt.run(m.train, [data['csv_url'], data.get('model_uri')])
+        await bgt.run(m.train, [request['csv_url'], request['model_uri']])
         status = m.NEW
 
     return web.Response(body=json.dumps({
@@ -120,14 +113,8 @@ async def infer(request, *args):
             description: Internal error
     """
 
-    data = await request.json()
-
-    for key in ['image_url', 'model_uri']:
-        if not data.get(key):
-            return web.Response(body='Key {key} is required'.format(key=key), status=400)
-
     try:
-        result = await m.infer(**data)
+        result = await m.infer(**request)
     except ModelNotFound:
         return web.Response(body=json.dumps({
             "error": "Model not found"
