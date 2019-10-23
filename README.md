@@ -99,7 +99,7 @@ Rest API will response JSON, like
 
 ### Inference mode
 
-    POST /inference
+    POST /infer
 
 Example:
 ```sh
@@ -108,7 +108,7 @@ $ cat infer.json
 {"model_uri": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "image_url": "http://tf-models.arilot.org/static-tf-models/img/Abstract-Stripe_Fuzzy_Sweater/img_00000011.jpg"}
 
 # classify an (unseen?) image
-$ INFER=`cat infer.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$INFER" http://localhost:8080/inference
+$ INFER=`cat infer.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$INFER" http://localhost:8080/infer
 {"blouse": 0.0, "halter": 0.0, "sweater": 1.0}
 ```
 

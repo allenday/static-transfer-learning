@@ -228,7 +228,7 @@ class ML(DataManager):
 
         return model_path
 
-    async def inference_local(self, image_url, model_name):
+    async def infer_local(self, image_url, model_name):
         self.makedirs([self.TMP_DIR])
 
         model = self.load_model(model_name)
@@ -260,13 +260,13 @@ class ML(DataManager):
 
         return result
 
-    async def inference(self, image_url, model_uri):
+    async def infer(self, image_url, model_uri):
         """
         TODO: add GCS and IPFS support
         """
 
         model_filename = os.path.basename(model_uri)
 
-        model_path = await self.inference_local(image_url, model_filename)
+        model_path = await self.infer_local(image_url, model_filename)
 
         return model_path
