@@ -65,11 +65,9 @@ class ML(DataManager):
         return 'Adam'
 
     def get_model(self, model_name):
-        model = self.models.get(model_name)
-        if model:
-            return model.get('status')
-
-        return self.NOT_FOUND
+        return self.models.get(model_name, {
+            'status': self.NOT_FOUND
+        })
 
     def save_model(self, model, class_indices, csv_url):
         """
