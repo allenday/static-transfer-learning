@@ -46,7 +46,7 @@ async def train(request):
         properties:
           csv_url:
             type: "string"
-          model_url:
+          model_uri:
             type: string
     responses:
         "200":
@@ -68,7 +68,7 @@ async def train(request):
     status = m.get_model_status(model_name)
 
     if status == m.NOT_FOUND:
-        await bgt.run(m.train, [data['csv_url'], data.get('model_url')])
+        await bgt.run(m.train, [data['csv_url'], data.get('model_uri')])
         status = m.NEW
 
     return web.Response(body=json.dumps({
@@ -91,7 +91,7 @@ async def train(request):
         "type": "object"
     }
 )
-async def inference(request):
+async def infer(request):
     """
     ---
     description: Get classes by Image URL
@@ -107,7 +107,7 @@ async def inference(request):
         properties:
           image_url:
             type: "string"
-          model_url:
+          model_uri:
             type: string
     responses:
         "200":
@@ -122,12 +122,12 @@ async def inference(request):
 
     data = await request.json()
 
-    for key in ['image_url', 'model_url']:
+    for key in ['image_url', 'model_uri']:
         if not data.get(key):
             return web.Response(body='Key {key} is required'.format(key=key), status=400)
 
     try:
-        result = await m.inference(**data)
+        result = await m.infer(**data)
     except ModelNotFound:
         return web.Response(body=json.dumps({
             "error": "Model not found"
@@ -152,7 +152,7 @@ logging.basicConfig(level=logging.INFO)
 
 app = web.Application()
 app.router.add_route('POST', "/train", train)
-app.router.add_route('POST', "/inference", inference)
+app.router.add_route('POST', "/infer", infer)
 
 setup_swagger(app)
 

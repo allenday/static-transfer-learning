@@ -1,10 +1,35 @@
 # static-transfer-learning
 
+This project contains a Dockerized web service that: 
+
+1. constructs a transfer-learning model based on a set of (image,label) pairs, and 
+2. labels images based on the constructed model
+
+The model is produced deterministically. Cryptographic hashes are produced for all inputs and outputs to ensure reproducibility and auditability.
+
+## Motivation
+
+When building a machine-learning system, researchers often allocate more attention to:
+
+1. the novelty of methods employed, and
+2. the performance of the system on a benchmark, than they do to (3) reproducibility of results
+
+While this is the fastest way to publish results, the trade-off is that the productivity of the research community as a whole is reduced, as peers are unable to reproduce and assess one another's findings. 
+
+Even more troubling is that systems built without reproducibility in mind are sometimes deployed to production environments. Business decisions are made based on ML system outputs, but results of decisions are inconsistent across trials because the ML systems are non-deterministic.
+
+Non-determinism enters ML systems in at least two ways:
+
+1. system initialization conditions aren't documented, and 
+2. systems incorporate sources of randomness as part of their initialization process
+
+This project demonstrates the utility of an ML system in which randomness is excluded from the build process.
+
 ## Quick Start
 
 ### Run self-hosted
 
-    docker-compose up -d
+    docker-compose up -d --build
     
 Please open Swagger by http://localhost:8080/api/doc
 
@@ -28,6 +53,24 @@ Example request:
 ### Train mode
 
     POST /train
+    
+Example:
+```sh
+# Input has two parameters. csv_url, and model_uri. These are described below.
+$ cat train.json 
+{"model_uri": "my-model", "csv_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/train.csv"}
+
+$ TRAIN=`cat train.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$TRAIN" http://localhost:8080/train
+{"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "new"}
+
+# You can continue to issue the same command while training happens. you'll get an "in_progress" response.
+$ !!
+{"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "in_progress"}
+
+# Eventually it finishes training.
+$ !!
+{"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "ready"}
+```
 
 #### Arguments
 **csv_url** - URL of CSV file in format:
@@ -38,11 +81,12 @@ Example request:
 
 Example:
 ```csv
-http://tf-models.arilot.org/static-tf-models/img/Abstract-Patterned_Blouse/img_00000049.jpg,blouse
-http://tf-models.arilot.org/static-tf-models/img/Abstract-Stripe_Fuzzy_Sweater/img_00000011.jpg,sweater
+https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/blouse/1019.jpg,blouse
+https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1041.jpg,sweater
+https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/halter/1096.jpg,halter
 ```
 
-**model_url** - URL for save model file into Persistence Storage, like GCS or IPFS (no supported)
+**model_uri** - URI for saving the model file into Persistence Storage, like GCS or IPFS (no supported)
 
 Examples:
 ```
@@ -73,12 +117,23 @@ Rest API will response JSON, like
 
 ### Inference mode
 
-    POST /inference
+    POST /infer
+
+Example:
+```sh
+# Use model_uri from /train
+$ cat infer.json 
+{"model_uri": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "image_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg,sweater"}
+
+# classify an (unseen?) image
+$ INFER=`cat infer.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$INFER" http://localhost:8080/infer
+{"blouse": 0.0, "halter": 0.0, "sweater": 1.0}
+```
 
 #### Arguments
 **image_url** - URL of Image
 
-**model_url** - Model name (from train mode response) or model URL (like GCS or IPFS) (no supported)
+**model_uri** - Model name (from train mode response) or model URI (like GCS or IPFS) (no supported)
 
 Examples:
 
@@ -133,9 +188,9 @@ Available variables:
 | DOWNLOAD_POOL_SIZE | `100`   | Size of AioPool: how many concurrent tasks can work when loading images from CSV |
 | IPFS_HOST     | `https://ipfs.infura.io` | Address of IPFS endpoint. Infura public endpoint by default |
 | IPFS_PORT    |  `5001`       | Port of IPFS endpoint      |
-| DEFAULT_INPUT_CSV_URL | `http://tf-models.arilot.org/static-tf-models/input.csv` | Default URL of CSV file with images and labels for training. You can set this value using `--csv-url` CLI flag |
+| DEFAULT_INPUT_CSV_URL | `https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/train.csv` | Default URL of CSV file with images and labels for training. You can set this value using `--csv-url` CLI flag |
 | DEFAULT_MODEL_FILENAME | `default` | Default file name of model. You can set this value using `--model-filename` CLI flag |
-| DEFAULT_TEST_IMG_URL | `http://tf-models.arilot.org/static-tf-models/img/Embroidered_Gauze_Blouse/img_00000014.jpg` | Default URL of test image for predict mode. You can set this value using `--image-url` CLI flag |
+| DEFAULT_TEST_IMG_URL | `https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg` | Default URL of test image for predict mode. You can set this value using `--image-url` CLI flag |
 | TENSORBOARD_LOGS_ENABLED | `false` | Enable or disable logging for using ing tensorboard |
 | API_HOST | `0.0.0.0` | Rest API host binding |
 | API_PORT | `8080` | Rest API port binding |
