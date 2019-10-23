@@ -123,7 +123,7 @@ Example:
 ```sh
 # Use model_uri from /train
 $ cat infer.json 
-{"model_uri": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "image_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg,sweater"}
+{"model_uri": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "image_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg"}
 
 # classify an (unseen?) image
 $ INFER=`cat infer.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$INFER" http://localhost:8080/infer
