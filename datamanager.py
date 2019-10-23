@@ -161,10 +161,9 @@ class DataManager(object):
 
         # Custom validation (https://github.com/OlafenwaMoses/ImageAI/issues/294)
         if train_size < 300 or validate_size < 100:
-            raise InvalidTrainingData(
-                "You should have at least 300 for train and 100 for test per object "
-                "to create a model with minimal viable accuracy"
-            )
+            error = "You should have at least 300 for train and 100 for test per object"
+            logging.error('Cant train model by data from csv {csv_url}: {error}'.format(csv_url=csv_url, error=error))
+            return None, None, None, None, error
 
         for link in links:
             dir_path = os.path.join(self.DATA_DIR, link['i_type'], model_name, link['label'])
@@ -186,4 +185,4 @@ class DataManager(object):
 
         logging.info('Data downloaded ({count} files)'.format(count=len(tasks)))
 
-        return train_dir, validate_dir, train_size, validate_size
+        return train_dir, validate_dir, train_size, validate_size, None

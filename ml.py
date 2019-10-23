@@ -160,12 +160,11 @@ class ML(DataManager):
             'status': self.IN_PROGRESS
         }
 
-        try:
-            train_dir, validate_dir, train_size, validate_size = await self.download_train_data(csv_url)
-        except Exception as exc:
+        train_dir, validate_dir, train_size, validate_size, error = await self.download_train_data(csv_url)
+        if error:
             self.models[model_name] = {
                 'status': self.ERROR,
-                'error': str(exc)
+                'error': error
             }
             return None
 

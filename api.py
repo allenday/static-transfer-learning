@@ -60,7 +60,7 @@ async def train(request, *args):
     model_name = m.get_model_name(request['csv_url'])
 
     model = m.get_model(model_name)
-    model_status = model.get('status', m.NEW)
+    model_status = model['status']
 
     result = {
         'model_name': model_name,
@@ -68,6 +68,7 @@ async def train(request, *args):
     }
 
     if model_status == m.NOT_FOUND:
+        result['status'] = m.NEW
         await bgt.run(m.train, [request['csv_url'], request['model_uri']])
     elif model_status == m.ERROR and model.get('error'):
         result['error'] = model['error']
