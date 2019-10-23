@@ -41,7 +41,7 @@ Example:
 ```sh
 # Input has two parameters. csv_url, and model_uri. These are described below.
 $ cat train.json 
-{"model_uri": "my-model", "csv_url": "https://storage.googleapis.com/some-bucket/some.csv"}
+{"model_uri": "my-model", "csv_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/train.csv"}
 
 $ TRAIN=`cat train.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$TRAIN" http://localhost:8080/train
 {"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "new"}
@@ -64,8 +64,9 @@ $ !!
 
 Example:
 ```csv
-http://tf-models.arilot.org/static-tf-models/img/Abstract-Patterned_Blouse/img_00000049.jpg,blouse
-http://tf-models.arilot.org/static-tf-models/img/Abstract-Stripe_Fuzzy_Sweater/img_00000011.jpg,sweater
+https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/blouse/1019.jpg,blouse
+https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1041.jpg,sweater
+https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/halter/1096.jpg,halter
 ```
 
 **model_uri** - URI for saving the model file into Persistence Storage, like GCS or IPFS (no supported)
@@ -105,7 +106,7 @@ Example:
 ```sh
 # Use model_uri from /train
 $ cat infer.json 
-{"model_uri": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "image_url": "http://tf-models.arilot.org/static-tf-models/img/Abstract-Stripe_Fuzzy_Sweater/img_00000011.jpg"}
+{"model_uri": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "image_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg,sweater"}
 
 # classify an (unseen?) image
 $ INFER=`cat infer.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$INFER" http://localhost:8080/infer
@@ -170,9 +171,9 @@ Available variables:
 | DOWNLOAD_POOL_SIZE | `100`   | Size of AioPool: how many concurrent tasks can work when loading images from CSV |
 | IPFS_HOST     | `https://ipfs.infura.io` | Address of IPFS endpoint. Infura public endpoint by default |
 | IPFS_PORT    |  `5001`       | Port of IPFS endpoint      |
-| DEFAULT_INPUT_CSV_URL | `http://tf-models.arilot.org/static-tf-models/input.csv` | Default URL of CSV file with images and labels for training. You can set this value using `--csv-url` CLI flag |
+| DEFAULT_INPUT_CSV_URL | `https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/train.csv` | Default URL of CSV file with images and labels for training. You can set this value using `--csv-url` CLI flag |
 | DEFAULT_MODEL_FILENAME | `default` | Default file name of model. You can set this value using `--model-filename` CLI flag |
-| DEFAULT_TEST_IMG_URL | `http://tf-models.arilot.org/static-tf-models/img/Embroidered_Gauze_Blouse/img_00000014.jpg` | Default URL of test image for predict mode. You can set this value using `--image-url` CLI flag |
+| DEFAULT_TEST_IMG_URL | `https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg` | Default URL of test image for predict mode. You can set this value using `--image-url` CLI flag |
 | TENSORBOARD_LOGS_ENABLED | `false` | Enable or disable logging for using ing tensorboard |
 | API_HOST | `0.0.0.0` | Rest API host binding |
 | API_PORT | `8080` | Rest API port binding |

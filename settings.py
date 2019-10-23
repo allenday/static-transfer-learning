@@ -12,11 +12,10 @@ DOWNLOAD_POOL_SIZE = int(os.environ.get('DOWNLOAD_POOL_SIZE', 100))
 IPFS_HOST = os.environ.get('DATA_DIR', 'https://ipfs.infura.io')
 IPFS_PORT = int(os.environ.get('IPFS_PORT', 5001))
 DEFAULT_INPUT_CSV_URL = os.environ.get('DEFAULT_INPUT_CSV_URL',
-                                       'http://tf-models.arilot.org/static-tf-models/input.csv')
+                                       'https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/train.csv')
 DEFAULT_MODEL_FILENAME = os.environ.get('DEFAULT_MODEL_FILENAME', 'default')
 DEFAULT_TEST_IMG_URL = os.environ.get('DEFAULT_TEST_IMG_URL',
-                                      'http://tf-models.arilot.org/static-tf-models/img/Abstract-Patterned_Blouse/img_00000049.jpg')
-
+                                      'https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg')
 TENSORBOARD_LOGS_ENABLED = strtobool(os.environ.get('TENSORBOARD_LOGS', 'false'))
 API_HOST = os.environ.get('API_HOST', '0.0.0.0')
 API_PORT = int(os.environ.get('API_PORT', '8080'))
