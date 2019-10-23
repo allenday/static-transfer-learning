@@ -40,10 +40,10 @@ Please open Swagger by http://localhost:8080/api/doc
 Example:
 ```sh
 # Input has two parameters. csv_url, and model_url. These are described below.
-$ cat in.json 
+$ cat train.json 
 {"model_url": "my-model", "csv_url": "https://storage.googleapis.com/some-bucket/some.csv"}
 
-$ Y=`cat in.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$Y" http://localhost:8080/train
+$ TRAIN=`cat train.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$TRAIN" http://localhost:8080/train
 {"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "new"}
 
 # You can continue to issue the same command while training happens. you'll get an "in_progress" response.
@@ -100,6 +100,17 @@ Rest API will response JSON, like
 ### Inference mode
 
     POST /inference
+
+Example:
+```sh
+# Use model_url from /train
+$ cat infer.json 
+{"model_url": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "image_url": "http://tf-models.arilot.org/static-tf-models/img/Abstract-Stripe_Fuzzy_Sweater/img_00000011.jpg"}
+
+# classify an (unseen?) image
+$ INFER=`cat infer.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$INFER" http://localhost:8080/inference
+{"blouse": 0.0, "halter": 0.0, "sweater": 1.0}
+```
 
 #### Arguments
 **image_url** - URL of Image
