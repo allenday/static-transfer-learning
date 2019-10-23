@@ -58,12 +58,13 @@ class ML(DataManager):
     NEW = 'new'
     NOT_FOUND = 'not_found'
     IN_PROGRESS = 'in_progress'
+    ERROR = 'error'
     DONE = 'done'
 
     def __get_optimizer(self):
         return 'Adam'
 
-    def get_model_status(self, model_name):
+    def get_model(self, model_name):
         model = self.models.get(model_name)
         if model:
             return model.get('status')
@@ -161,7 +162,14 @@ class ML(DataManager):
             'status': self.IN_PROGRESS
         }
 
-        train_dir, validate_dir, train_size, validate_size = await self.download_train_data(csv_url)
+        try:
+            train_dir, validate_dir, train_size, validate_size = await self.download_train_data(csv_url)
+        except Exception as exc:
+            self.models[model_name] = {
+                'status': self.ERROR,
+                'error': str(exc)
+            }
+            return None
 
         train_generator = self.__get_image_data_generator().flow_from_directory(
             train_dir,

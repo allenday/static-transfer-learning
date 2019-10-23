@@ -14,6 +14,10 @@ from asyncio_pool import AioPool
 from aiohttp import ClientSession
 
 
+class InvalidTrainingData(BaseException):
+    pass
+
+
 class DataManager(object):
     PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
     DATA_DIR = os.path.join(PROJECT_DIR, settings.DATA_DIR)
@@ -154,6 +158,13 @@ class DataManager(object):
         self.makedirs([train_dir, validate_dir])
 
         links, train_size, validate_size = await self.get_links_for_train(csv_url)
+
+        # Custom validation (https://github.com/OlafenwaMoses/ImageAI/issues/294)
+        if train_size < 300 or validate_size < 100:
+            raise InvalidTrainingData(
+                "You should have at least 300 for train and 100 for test per object "
+                "to create a model with minimal viable accuracy"
+            )
 
         for link in links:
             dir_path = os.path.join(self.DATA_DIR, link['i_type'], model_name, link['label'])
