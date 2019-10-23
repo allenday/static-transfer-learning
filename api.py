@@ -3,6 +3,7 @@ import logging
 import settings
 from aiohttp import web
 from bgtask import BackgroundTask
+from aiohttp_validate import validate
 from aiohttp_swagger import setup_swagger
 from aiohttp.client_exceptions import InvalidURL
 from ml import ML, ModelNotFound, ErrorDownloadImage, ErrorProcessingImage
@@ -11,6 +12,24 @@ m = ML()
 bgt = BackgroundTask()
 
 
+@validate(
+    request_schema={
+        "type": "object",
+        "properties": {
+            "csv_url": {"type": "string"},
+            "model_url": {"type": "string"},
+        },
+        "required": ["csv_url", "model_url"],
+        "additionalProperties": False
+    },
+    response_schema={
+        "type": "object",
+        "properties": {
+            "model_name": {"type": "string"},
+            "status": {"type": "string"},
+        },
+    }
+)
 async def train(request):
     """
     ---
@@ -31,7 +50,7 @@ async def train(request):
             type: string
     responses:
         "200":
-            description: Model name and storage URL (optional)
+            description: Model name and storage URL
         "405":
             description: invalid HTTP Method
         "400":
@@ -58,6 +77,20 @@ async def train(request):
     }))
 
 
+@validate(
+    request_schema={
+        "type": "object",
+        "properties": {
+            "image_url": {"type": "string"},
+            "model_url": {"type": "string"},
+        },
+        "required": ["image_url", "model_url"],
+        "additionalProperties": False
+    },
+    response_schema={
+        "type": "object"
+    }
+)
 async def inference(request):
     """
     ---

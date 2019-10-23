@@ -2,7 +2,6 @@
 
 ## Quick Start
 
-
 ### Run self-hosted
 
     docker-compose up -d
