@@ -27,7 +27,7 @@ async def train(request):
         properties:
           csv_url:
             type: "string"
-          model_url:
+          model_uri:
             type: string
     responses:
         "200":
@@ -49,7 +49,7 @@ async def train(request):
     status = m.get_model_status(model_name)
 
     if status == m.NOT_FOUND:
-        await bgt.run(m.train, [data['csv_url'], data.get('model_url')])
+        await bgt.run(m.train, [data['csv_url'], data.get('model_uri')])
         status = m.NEW
 
     return web.Response(body=json.dumps({
@@ -74,7 +74,7 @@ async def inference(request):
         properties:
           image_url:
             type: "string"
-          model_url:
+          model_uri:
             type: string
     responses:
         "200":
@@ -89,7 +89,7 @@ async def inference(request):
 
     data = await request.json()
 
-    for key in ['image_url', 'model_url']:
+    for key in ['image_url', 'model_uri']:
         if not data.get(key):
             return web.Response(body='Key {key} is required'.format(key=key), status=400)
 

@@ -39,9 +39,9 @@ Please open Swagger by http://localhost:8080/api/doc
     
 Example:
 ```sh
-# Input has two parameters. csv_url, and model_url. These are described below.
+# Input has two parameters. csv_url, and model_uri. These are described below.
 $ cat train.json 
-{"model_url": "my-model", "csv_url": "https://storage.googleapis.com/some-bucket/some.csv"}
+{"model_uri": "my-model", "csv_url": "https://storage.googleapis.com/some-bucket/some.csv"}
 
 $ TRAIN=`cat train.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$TRAIN" http://localhost:8080/train
 {"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "new"}
@@ -68,7 +68,7 @@ http://tf-models.arilot.org/static-tf-models/img/Abstract-Patterned_Blouse/img_0
 http://tf-models.arilot.org/static-tf-models/img/Abstract-Stripe_Fuzzy_Sweater/img_00000011.jpg,sweater
 ```
 
-**model_url** - URL for save model file into Persistence Storage, like GCS or IPFS (no supported)
+**model_uri** - URI for saving the model file into Persistence Storage, like GCS or IPFS (no supported)
 
 Examples:
 ```
@@ -103,9 +103,9 @@ Rest API will response JSON, like
 
 Example:
 ```sh
-# Use model_url from /train
+# Use model_uri from /train
 $ cat infer.json 
-{"model_url": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "image_url": "http://tf-models.arilot.org/static-tf-models/img/Abstract-Stripe_Fuzzy_Sweater/img_00000011.jpg"}
+{"model_uri": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "image_url": "http://tf-models.arilot.org/static-tf-models/img/Abstract-Stripe_Fuzzy_Sweater/img_00000011.jpg"}
 
 # classify an (unseen?) image
 $ INFER=`cat infer.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$INFER" http://localhost:8080/inference
@@ -115,7 +115,7 @@ $ INFER=`cat infer.json`; curl -X POST --header 'Content-Type: application/json'
 #### Arguments
 **image_url** - URL of Image
 
-**model_url** - Model name (from train mode response) or model URL (like GCS or IPFS) (no supported)
+**model_uri** - Model name (from train mode response) or model URI (like GCS or IPFS) (no supported)
 
 Examples:
 

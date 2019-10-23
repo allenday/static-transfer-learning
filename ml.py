@@ -214,7 +214,7 @@ class ML(DataManager):
 
         return self.save_model(model, train_generator.class_indices, csv_url)
 
-    async def train(self, csv_url, model_url):
+    async def train(self, csv_url, model_uri):
         """
         Train method wrapper for support external storages for model,
         like GCS and IPFS
@@ -222,7 +222,7 @@ class ML(DataManager):
         TODO: add GCS and IPFS support
         """
 
-        model_filename = os.path.basename(model_url)
+        model_filename = os.path.basename(model_uri)
 
         model_path = await self.train_local(csv_url)
 
@@ -260,12 +260,12 @@ class ML(DataManager):
 
         return result
 
-    async def inference(self, image_url, model_url):
+    async def inference(self, image_url, model_uri):
         """
         TODO: add GCS and IPFS support
         """
 
-        model_filename = os.path.basename(model_url)
+        model_filename = os.path.basename(model_uri)
 
         model_path = await self.inference_local(image_url, model_filename)
 
