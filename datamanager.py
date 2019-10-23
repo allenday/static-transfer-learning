@@ -19,6 +19,8 @@ class InvalidTrainingData(BaseException):
 
 
 class DataManager(object):
+    MIN_TRAIN_SIZE = 300
+    MIN_VALIDATE_SIZE = 100
     PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
     DATA_DIR = os.path.join(PROJECT_DIR, settings.DATA_DIR)
     TRAIN_DIR = os.path.join(DATA_DIR, 'train')
@@ -125,6 +127,8 @@ class DataManager(object):
                 validate_size=validate_size * labels_count
             )
         )
+        logging.info('Train items count per label: %d' % train_size)
+        logging.info('Validate items count per label: %d' % validate_size)
 
         for counter in range(0, label_imgs_limit):
             if counter <= train_size:
@@ -166,8 +170,8 @@ class DataManager(object):
             return None, None, None, None, error
 
         # Custom validation (https://github.com/OlafenwaMoses/ImageAI/issues/294)
-        if train_size < 300 or validate_size < 100:
-            error = "You should have at least 300 for train and 100 for test per object"
+        if train_size < self.MIN_TRAIN_SIZE or validate_size < self.MIN_VALIDATE_SIZE:
+            error = "You should have at least 300 for train and 100 for test per label."
             logging.error('Cant train model by data from csv {csv_url}: {error}'.format(csv_url=csv_url, error=error))
             return None, None, None, None, error
 
