@@ -219,11 +219,13 @@ class ML(DataManager):
                             # max_queue_size=1,
                             callbacks=self.__get_callbacks())
 
+        model_path = self.save_model(model, train_generator.class_indices, csv_url)
+
         # Clear session after training
         # https://github.com/allenday/static-transfer-learning/issues/8
         tf.keras.backend.clear_session()
 
-        return self.save_model(model, train_generator.class_indices, csv_url)
+        return model_path
 
     async def train(self, csv_url, model_uri):
         """
