@@ -17,9 +17,9 @@ bgt = BackgroundTask()
         "type": "object",
         "properties": {
             "csv_url": {"type": "string"},
-            "model_url": {"type": "string"},
+            "model_uri": {"type": "string"},
         },
-        "required": ["csv_url", "model_url"],
+        "required": ["csv_url", "model_uri"],
         "additionalProperties": False
     },
     response_schema={
@@ -77,7 +77,7 @@ async def train(request, *args):
             "image_url": {"type": "string"},
             "model_uri": {"type": "string"},
         },
-        "required": ["image_url", "model_url"],
+        "required": ["image_url", "model_uri"],
         "additionalProperties": False
     },
     response_schema={
