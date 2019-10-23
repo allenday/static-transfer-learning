@@ -27,7 +27,7 @@ This project demonstrates the utility of an ML system in which randomness is exc
 
 ## Quick Start
 
-    docker-compose up -d
+    docker-compose up -d --build
     
 Please open Swagger by http://localhost:8080/api/doc
 
