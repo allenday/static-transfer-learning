@@ -82,7 +82,7 @@ async def train(request):
         "type": "object",
         "properties": {
             "image_url": {"type": "string"},
-            "model_url": {"type": "string"},
+            "model_uri": {"type": "string"},
         },
         "required": ["image_url", "model_url"],
         "additionalProperties": False
