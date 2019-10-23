@@ -157,7 +157,13 @@ class DataManager(object):
         self.cleanup([train_dir, validate_dir])
         self.makedirs([train_dir, validate_dir])
 
-        links, train_size, validate_size = await self.get_links_for_train(csv_url)
+        try:
+            links, train_size, validate_size = await self.get_links_for_train(csv_url)
+        except Exception as exc:
+            error = "Error extract data from csv-file"
+            logging.error('Cant train model by data from csv {csv_url}: {error}'.format(csv_url=csv_url, error=error))
+            logging.error(exc)
+            return None, None, None, None, error
 
         # Custom validation (https://github.com/OlafenwaMoses/ImageAI/issues/294)
         if train_size < 300 or validate_size < 100:
