@@ -30,7 +30,7 @@ bgt = BackgroundTask()
         },
     }
 )
-async def train(request):
+async def train(request, *args):
     """
     ---
     description: Train model
@@ -91,7 +91,7 @@ async def train(request):
         "type": "object"
     }
 )
-async def infer(request):
+async def infer(request, *args):
     """
     ---
     description: Get classes by Image URL
