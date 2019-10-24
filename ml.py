@@ -90,13 +90,16 @@ class ML(DataManager):
 
         logging.info('Model saved into {model_path}'.format(model_path=model_path))
 
+        return model_path
+
+    def reload_model(self, model_name):
+        del self.models[model_name]
+
         # Clear session after training
         # https://github.com/allenday/static-transfer-learning/issues/8
-        # tf.keras.backend.clear_session()
+        tf.keras.backend.clear_session()
 
-        self.load_model(model_name)
-
-        return model_path
+        return self.load_model(model_name)
 
     def load_model(self, model_name):
         """
@@ -220,6 +223,8 @@ class ML(DataManager):
                             callbacks=self.__get_callbacks())
 
         model_path = self.save_model(model, train_generator.class_indices, csv_url)
+
+        self.reload_model(model_name)
 
         return model_path
 
