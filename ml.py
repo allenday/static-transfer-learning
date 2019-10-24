@@ -88,13 +88,13 @@ class ML(DataManager):
         with open(model_class_indices, "w") as json_file:
             json_file.write(json.dumps(list(class_indices.keys()), sort_keys=True))
 
-        self.models[model_name] = {
-            'model': model,
-            'class_indices': class_indices,
-            'status': self.READY
-        }
-
         logging.info('Model saved into {model_path}'.format(model_path=model_path))
+
+        # Clear session after training
+        # https://github.com/allenday/static-transfer-learning/issues/8
+        # tf.keras.backend.clear_session()
+
+        self.load_model(model_name)
 
         return model_path
 
@@ -221,10 +221,6 @@ class ML(DataManager):
 
         model_path = self.save_model(model, train_generator.class_indices, csv_url)
 
-        # Clear session after training
-        # https://github.com/allenday/static-transfer-learning/issues/8
-        tf.keras.backend.clear_session()
-
         return model_path
 
     async def train(self, csv_url, model_uri):
@@ -232,7 +228,7 @@ class ML(DataManager):
         Train method wrapper for support external storages for model,
         like GCS and IPFS
         
-        TODO: add GCS and IPFS support
+        TODO: add IPFS support
         """
 
         model_filename = os.path.basename(model_uri)
