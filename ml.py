@@ -26,8 +26,6 @@ sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
 tf.keras.backend.set_session(sess)
 tf.set_random_seed(settings.RANDOM_SEED)
 
-graph = tf.get_default_graph()
-
 from tensorflow.python.keras.saving import model_from_json
 from datamanager import DataManager
 
@@ -62,16 +60,26 @@ class ML(DataManager):
     DONE = 'done'
 
     def __get_optimizer(self):
+        """
+        Tensorflow optimizer getter
+        """
         return 'Adam'
 
     def get_model(self, model_name):
-        return self.models.get(model_name, {
-            'status': self.NOT_FOUND
-        })
-
-    def save_model(self, model, class_indices, csv_url):
         """
-        Save model to local file
+        Tensorflow model getter from memory
+        """
+        empty_result = {
+            'model': None,
+            'class_indices': None,
+            'error': None,
+            'status': self.NOT_FOUND
+        }
+        return self.models.get(model_name, empty_result)
+
+    def save_model_local(self, model, class_indices, csv_url):
+        """
+        Save model to local filesystem
         """
 
         model_name = self.get_model_name(csv_url)
@@ -90,20 +98,13 @@ class ML(DataManager):
 
         logging.info('Model saved into {model_path}'.format(model_path=model_path))
 
+        self.models[model_name]['status'] = self.READY
+
         return model_path
 
-    def reload_model(self, model_name):
-        del self.models[model_name]
-
-        # Clear session after training
-        # https://github.com/allenday/static-transfer-learning/issues/8
-        tf.keras.backend.clear_session()
-
-        return self.load_model(model_name)
-
-    def load_model(self, model_name):
+    def load_model_local(self, model_name):
         """
-        Load model from local file
+        Load model from local filesystem
         """
 
         model = self.models.get(model_name)
@@ -151,24 +152,27 @@ class ML(DataManager):
             callbacks.append(tensorboard_callback)
         return callbacks
 
+    def __set_model_status(self, model_name, status, error=None):
+        if not self.models.get(model_name):
+            self.models[model_name] = {}
+
+        self.models[model_name]['status'] = status
+        self.models[model_name]['error'] = error
+
     async def train_local(self, csv_url):
         """
         Train model by CSV file
         """
+
         self.makedirs([self.MODELS_DIR])
 
         model_name = self.get_model_name(csv_url)
 
-        self.models[model_name] = {
-            'status': self.IN_PROGRESS
-        }
+        self.__set_model_status(model_name, self.IN_PROGRESS)
 
         train_dir, validate_dir, train_size, validate_size, error = await self.download_train_data(csv_url)
         if error:
-            self.models[model_name] = {
-                'status': self.ERROR,
-                'error': error
-            }
+            self.__set_model_status(model_name, self.ERROR, error=error)
             return None
 
         train_generator = self.__get_image_data_generator().flow_from_directory(
@@ -222,9 +226,10 @@ class ML(DataManager):
                             # max_queue_size=1,
                             callbacks=self.__get_callbacks())
 
-        model_path = self.save_model(model, train_generator.class_indices, csv_url)
+        model_path = self.save_model_local(model, train_generator.class_indices, csv_url)
 
-        self.reload_model(model_name)
+        # Clear TF session after train
+        tf.keras.backend.clear_session()
 
         return model_path
 
@@ -232,8 +237,8 @@ class ML(DataManager):
         """
         Train method wrapper for support external storages for model,
         like GCS and IPFS
-        
-        TODO: add IPFS support
+
+        TODO: add GCS and IPFS support
         """
 
         model_filename = os.path.basename(model_uri)
@@ -243,12 +248,12 @@ class ML(DataManager):
         return model_path
 
     async def infer_local(self, image_url, model_name):
+        # Prepare
         self.makedirs([self.TMP_DIR])
-
-        model = self.load_model(model_name)
 
         image_tmp_path = os.path.join(self.TMP_DIR, uuid.uuid1().__str__() + ".jpg")
 
+        # Download image
         download_result = await self.download_file({
             "url": image_url,
             "file_path": image_tmp_path
@@ -256,24 +261,25 @@ class ML(DataManager):
         if not download_result:
             raise ErrorDownloadImage('Error download image by url "{url}"'.format(url=image_url))
 
-        try:
-            img = tf.keras.preprocessing.image.load_img(image_tmp_path,
-                                                        target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
-            img = tf.keras.preprocessing.image.img_to_array(img)
-            img = np.reshape(img, [settings.IMAGE_SIZE, settings.IMAGE_SIZE, 3])
-            img = np.expand_dims(img, axis=0)
+        # Init graph & model
+        model = self.load_model_local(model_name)
 
-            result = {}
+        img = tf.keras.preprocessing.image.load_img(image_tmp_path,
+                                                    target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
+        img = tf.keras.preprocessing.image.img_to_array(img)
+        img = np.reshape(img, [settings.IMAGE_SIZE, settings.IMAGE_SIZE, len(model['class_indices'])])
+        img = np.expand_dims(img, axis=0)
 
-            with graph.as_default():
-                y = model['model'].predict(img)
+        result = {}
 
-            for idx, res in enumerate(list(y[0])):
-                result[model['class_indices'][idx]] = round(float(res), 2)
-        except Exception as exc:
-            logging.error(str(exc))
-            raise ErrorProcessingImage('Error processing image by url "{url}"'.format(url=image_url))
+        graph = tf.get_default_graph()
+        with graph.as_default():
+            y = model['model'].predict(img)
 
+        for idx, res in enumerate(list(y[0])):
+            result[model['class_indices'][idx]] = round(float(res), 2)
+
+        # Clear temporary image file
         os.remove(image_tmp_path)
 
         return result
