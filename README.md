@@ -57,10 +57,10 @@ Example request:
 Example:
 ```sh
 # Input has two parameters. csv_url, and model_uri. These are described below.
-$ cat train.json 
+$ cat example-data/train.json 
 {"model_uri": "my-model", "csv_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/train.csv"}
 
-$ TRAIN=`cat train.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$TRAIN" http://localhost:8080/train
+$ TRAIN=`cat example-data/train.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$TRAIN" http://localhost:8080/train
 {"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "new"}
 
 # You can continue to issue the same command while training happens. you'll get an "in_progress" response.
