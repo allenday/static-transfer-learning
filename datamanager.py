@@ -14,7 +14,13 @@ from asyncio_pool import AioPool
 from aiohttp import ClientSession
 
 
+class InvalidTrainingData(BaseException):
+    pass
+
+
 class DataManager(object):
+    MIN_TRAIN_SIZE = 300
+    MIN_VALIDATE_SIZE = 100
     PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
     DATA_DIR = os.path.join(PROJECT_DIR, settings.DATA_DIR)
     TRAIN_DIR = os.path.join(DATA_DIR, 'train')
@@ -121,6 +127,8 @@ class DataManager(object):
                 validate_size=validate_size * labels_count
             )
         )
+        logging.info('Train items count per label: %d' % train_size)
+        logging.info('Validate items count per label: %d' % validate_size)
 
         for counter in range(0, label_imgs_limit):
             if counter <= train_size:
@@ -150,9 +158,22 @@ class DataManager(object):
         train_dir = os.path.join(self.TRAIN_DIR, model_name)
         validate_dir = os.path.join(self.VALIDATE_DIR, model_name)
 
-        # self.cleanup([train_dir, validate_dir])
+        self.cleanup([train_dir, validate_dir])
+        self.makedirs([train_dir, validate_dir])
 
-        links, train_size, validate_size = await self.get_links_for_train(csv_url)
+        try:
+            links, train_size, validate_size = await self.get_links_for_train(csv_url)
+        except Exception as exc:
+            error = "Error extract data from csv-file"
+            logging.error('Cant train model by data from csv {csv_url}: {error}'.format(csv_url=csv_url, error=error))
+            logging.error(exc)
+            return None, None, None, None, error
+
+        # Custom validation (https://github.com/OlafenwaMoses/ImageAI/issues/294)
+        if train_size < self.MIN_TRAIN_SIZE or validate_size < self.MIN_VALIDATE_SIZE:
+            error = "You should have at least 300 for train and 100 for test per label."
+            logging.error('Cant train model by data from csv {csv_url}: {error}'.format(csv_url=csv_url, error=error))
+            return None, None, None, None, error
 
         for link in links:
             dir_path = os.path.join(self.DATA_DIR, link['i_type'], model_name, link['label'])
@@ -174,4 +195,4 @@ class DataManager(object):
 
         logging.info('Data downloaded ({count} files)'.format(count=len(tasks)))
 
-        return train_dir, validate_dir, train_size, validate_size
+        return train_dir, validate_dir, train_size, validate_size, None

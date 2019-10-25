@@ -3,6 +3,7 @@ import logging
 import settings
 from aiohttp import web
 from bgtask import BackgroundTask
+from aiohttp_validate import validate
 from aiohttp_swagger import setup_swagger
 from aiohttp.client_exceptions import InvalidURL
 from ml import ML, ModelNotFound, ErrorDownloadImage, ErrorProcessingImage
@@ -11,7 +12,25 @@ m = ML()
 bgt = BackgroundTask()
 
 
-async def train(request):
+@validate(
+    request_schema={
+        "type": "object",
+        "properties": {
+            "csv_url": {"type": "string"},
+            "model_uri": {"type": "string"},
+        },
+        "required": ["csv_url", "model_uri"],
+        "additionalProperties": False
+    },
+    response_schema={
+        "type": "object",
+        "properties": {
+            "model_name": {"type": "string"},
+            "status": {"type": "string"},
+        },
+    }
+)
+async def train(request, *args):
     """
     ---
     description: Train model
@@ -31,34 +50,47 @@ async def train(request):
             type: string
     responses:
         "200":
-            description: Model name and storage URL (optional)
+            description: Model name and storage URL
         "405":
             description: invalid HTTP Method
         "400":
             description: Bad request
     """
 
-    data = await request.json()
+    model_name = m.get_model_name(request['csv_url'])
 
-    for key in ['csv_url']:
-        if not data.get(key):
-            return web.Response(body='Key {key} is required'.format(key=key), status=400)
+    model = m.get_model(model_name)
+    model_status = model['status']
 
-    model_name = m.get_model_name(data['csv_url'])
-
-    status = m.get_model_status(model_name)
-
-    if status == m.NOT_FOUND:
-        await bgt.run(m.train, [data['csv_url'], data.get('model_uri')])
-        status = m.NEW
-
-    return web.Response(body=json.dumps({
+    result = {
         'model_name': model_name,
-        'status': status
-    }))
+        'status': model_status
+    }
+
+    if model_status == m.NOT_FOUND:
+        result['status'] = m.NEW
+        await bgt.run(m.train, [request['csv_url'], request['model_uri']])
+    elif model_status == m.ERROR and model.get('error'):
+        result['error'] = model['error']
+
+    return web.Response(body=json.dumps(result))
 
 
-async def infer(request):
+@validate(
+    request_schema={
+        "type": "object",
+        "properties": {
+            "image_url": {"type": "string"},
+            "model_uri": {"type": "string"},
+        },
+        "required": ["image_url", "model_uri"],
+        "additionalProperties": False
+    },
+    response_schema={
+        "type": "object"
+    }
+)
+async def infer(request, *args):
     """
     ---
     description: Get classes by Image URL
@@ -87,14 +119,8 @@ async def infer(request):
             description: Internal error
     """
 
-    data = await request.json()
-
-    for key in ['image_url', 'model_uri']:
-        if not data.get(key):
-            return web.Response(body='Key {key} is required'.format(key=key), status=400)
-
     try:
-        result = await m.infer(**data)
+        result = await m.infer(**request)
     except ModelNotFound:
         return web.Response(body=json.dumps({
             "error": "Model not found"

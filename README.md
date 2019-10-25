@@ -27,9 +27,26 @@ This project demonstrates the utility of an ML system in which randomness is exc
 
 ## Quick Start
 
+### Run self-hosted
+
     docker-compose up -d --build
     
 Please open Swagger by http://localhost:8080/api/doc
+
+### Public endpoint
+
+you can use deployed version http://34.90.202.123/api/doc (firewall rule in GCP is required)
+
+Example model id: `507a0a9ebc0e9eadb5b45a0b9db5a826377f5356` (based on http://tf-models.arilot.org/static-tf-models/input.csv)
+
+Example request:
+
+
+    curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d '{ \ 
+       "image_url": "https://sewoverit.co.uk/wp-content/uploads/2015/08/Anderson-Blouse-4.jpg", \ 
+       "model_url": "507a0a9ebc0e9eadb5b45a0b9db5a826377f5356" \ 
+     }' 'http://34.90.202.123/inference'
+
 
 ## Rest API
 
@@ -106,7 +123,7 @@ Example:
 ```sh
 # Use model_uri from /train
 $ cat infer.json 
-{"model_uri": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "image_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg,sweater"}
+{"model_uri": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "image_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg"}
 
 # classify an (unseen?) image
 $ INFER=`cat infer.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$INFER" http://localhost:8080/infer

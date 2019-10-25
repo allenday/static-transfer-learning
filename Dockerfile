@@ -1,4 +1,4 @@
-FROM python:3
+FROM python:3.6
 
 ADD requirements.txt /usr/src/app/requirements.txt
 RUN pip install -r /usr/src/app/requirements.txt
