@@ -243,7 +243,13 @@ class ML(DataManager):
         """
 
         model_path = await self.train_local(csv_url)
-        storage_factory.write_data_from_dir(path_to=model_uri, path_from=model_path)
+        try:
+            storage_factory.write_data_from_dir(path_to=model_uri, path_from=model_path)
+        except Exception as exc:
+            error = "Error write data to {model_uri}".format(model_uri=model_uri)
+            logging.error('Cant upload data from {model_path}: {error}'.format(model_path=model_path, error=error))
+            logging.error(exc)
+            return None, None, None, None, error
 
         return model_path
 

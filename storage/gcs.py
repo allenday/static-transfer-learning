@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 import settings
@@ -40,6 +41,7 @@ class GcsStorage(AbstractStorage):
             self.write_data(path=os.path.join(path, element['path']), data=element['data'])
 
     def write_data(self, path, data):
+        logging.info('Start writing data to {path}'.format(path=path))
         real_path = self.__get_file_path(path)
         blob = self.get_bucket(path).blob(real_path)
         blob.upload_from_string(data)
