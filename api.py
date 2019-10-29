@@ -2,14 +2,13 @@ import json
 import logging
 import settings
 from aiohttp import web
-from bgtask import BackgroundTask
+from bgtask import bgt
 from aiohttp_validate import validate
 from aiohttp_swagger import setup_swagger
 from aiohttp.client_exceptions import InvalidURL
-from ml import ML, ModelNotFound, ErrorDownloadImage, ErrorProcessingImage
+from ml import ML, ModelNotFound, ErrorDownloadImage, ErrorProcessingImage, ModelIsLoading
 
 m = ML()
-bgt = BackgroundTask()
 
 
 @validate(
@@ -57,7 +56,7 @@ async def train(request, *args):
             description: Bad request
     """
 
-    model_name = m.get_model_name(request['csv_url'])
+    model_name = m.get_model_name(request['model_uri'])
 
     model = m.get_model(model_name)
     model_status = model['status']
@@ -125,6 +124,10 @@ async def infer(request, *args):
         return web.Response(body=json.dumps({
             "error": "Model not found"
         }), status=404)
+    except ModelIsLoading as e:
+        return web.Response(body=json.dumps({
+            "loading_status": e.status
+        }), status=200)
     except InvalidURL:
         return web.Response(body=json.dumps({
             "error": "Incorrect image URL"
@@ -137,6 +140,7 @@ async def infer(request, *args):
         return web.Response(body=json.dumps({
             "error": "Error processing image. Please check image URL."
         }), status=500)
+
 
     return web.Response(body=json.dumps(result))
 

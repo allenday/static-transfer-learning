@@ -1,10 +1,13 @@
+import glob
 import json
 import os
+import shutil
 import uuid
 import logging
 import datetime
 
 import settings
+from bgtask import bgt
 from storage import Storage, storage_factory
 
 os.environ['PYTHONHASHSEED'] = str(settings.RANDOM_SEED)
@@ -47,6 +50,10 @@ class ErrorDownloadImage(BaseException):
     pass
 
 
+class ModelIsLoading(BaseException):
+    status = None
+
+
 class ErrorProcessingImage(BaseException):
     pass
 
@@ -56,6 +63,8 @@ class ML(DataManager):
     READY = 'ready'
     NEW = 'new'
     NOT_FOUND = 'not_found'
+    LOADING_START = 'loading_start'
+    LOADING_END = 'loading_end'
     IN_PROGRESS = 'in_progress'
     ERROR = 'error'
     DONE = 'done'
@@ -160,14 +169,12 @@ class ML(DataManager):
         self.models[model_name]['status'] = status
         self.models[model_name]['error'] = error
 
-    async def train_local(self, csv_url):
+    async def train_local(self, model_name, csv_url):
         """
         Train model by CSV file
         """
 
         self.makedirs([self.MODELS_DIR])
-
-        model_name = self.get_model_name(csv_url)
 
         self.__set_model_status(model_name, self.IN_PROGRESS)
 
@@ -242,7 +249,7 @@ class ML(DataManager):
         TODO: add GCS and IPFS support
         """
 
-        model_path = await self.train_local(csv_url)
+        model_path = await self.train_local(self.get_model(model_uri), csv_url)
         try:
             storage_factory.write_data_from_dir(path_to=model_uri, path_from=model_path)
         except Exception as exc:
@@ -290,13 +297,62 @@ class ML(DataManager):
 
         return result
 
+    def get_bgtask_by_path(self, path):
+        model_name = self.get_model_name(path)
+
+        model = self.get_model(model_name)
+        model_status = model.get('status', None)
+
+        result = {
+            'model_name': model_name,
+            'status': model_status
+        }
+
+        return result
+
+    async def prepare_ml_model(self, model_uri):
+        bgtask = self.get_bgtask_by_path(model_uri)
+        model_path = self.get_model_path(bgtask['model_name'])
+        if os.path.exists(model_path):
+            bgtask['status'] = self.LOADING_END
+            return bgtask
+
+        if bgtask['status'] == self.NOT_FOUND:
+            bgtask['status'] = self.LOADING_START
+            await bgt.run(self.load_model, [model_uri])
+
+        return bgtask
+
+    async def load_model(self, model_uri):
+        try:
+            model_name = self.get_model_name(model_uri)
+            self.__set_model_status(model_name, self.LOADING_START)
+            tmp_path = os.path.join(self.TMP_DIR, uuid.uuid1().__str__() + '/')
+            os.mkdir(tmp_path)
+            storage_factory.read_data_from_dir(path=model_uri, path_to=tmp_path)
+            model_path = self.get_model_path(model_name)
+            if not os.path.exists(model_path):
+                os.mkdir(model_path)
+
+            for filename in glob.glob(os.path.join(tmp_path, '*.*')):
+                shutil.copy(filename, model_path)
+
+            self.__set_model_status(model_name, self.LOADING_END)
+        except Exception as exc:
+            logging.error('Can not download model from {model_uri}'.format(model_uri=model_uri))
+            logging.error(exc)
+
     async def infer(self, image_url, model_uri):
         """
         TODO: add GCS and IPFS support
         """
 
-        model_filename = os.path.basename(model_uri)
+        model_status = await self.prepare_ml_model(model_uri)
 
-        model_path = await self.infer_local(image_url, model_filename)
-
-        return model_path
+        if model_status['status'] == self.READY or model_status['status'] == self.LOADING_END:
+            model_path = await self.infer_local(image_url, model_status['model_name'])
+            return model_path
+        else:
+            error = ModelIsLoading()
+            error.status = model_status['status']
+            raise error

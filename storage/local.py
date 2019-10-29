@@ -14,7 +14,16 @@ def get_real_path(path):
 
 class LocalStorage(AbstractStorage, ABC):
 
-    def read_data(self, path):
+    def read_data(self, path, path_to=None):
+        """
+               TODO Implement Copy to location
+               :param path:
+               :param dir_to:
+               :return:
+               """
+        if path_to is not None:
+            raise NotImplementedError('Copy to location is not implemented')
+
         with open(get_real_path(path=path), 'rb') as f:
             return f.read()
 
@@ -26,7 +35,15 @@ class LocalStorage(AbstractStorage, ABC):
         with open(get_real_path(path=get_real_path(path)), "wb") as f:
             return f.write(data)
 
-    def read_data_from_dir(self, path):
+    def read_data_from_dir(self, path, path_to=None):
+        """
+        TODO Implement Copy to directory
+        :param path:
+        :param dir_to:
+        :return:
+        """
+        if dir_to is not None:
+            raise NotImplementedError('Copy to directory is not implemented')
         files = list()
         for (dirpath, dirnames, filenames) in os.walk(get_real_path(path)):
             files.extend(filenames)

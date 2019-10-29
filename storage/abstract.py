@@ -21,9 +21,9 @@ class AbstractStorage(ABC):
         pass
 
     @abstractmethod
-    def read_data(self, path):
+    def read_data(self, path, path_to=None):
         pass
 
     @abstractmethod
-    def read_data_from_dir(self, path):
-        path
+    def read_data_from_dir(self, path, path_to=None):
+        pass
