@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "random_seed": 1234
+    "random_seed": "1234"
   },
   "model": {
     "name": "my-model",
