@@ -5,6 +5,7 @@ import logging
 import datetime
 
 import settings
+from storage import Storage, storage_factory
 
 os.environ['PYTHONHASHSEED'] = str(settings.RANDOM_SEED)
 import random
@@ -241,9 +242,8 @@ class ML(DataManager):
         TODO: add GCS and IPFS support
         """
 
-        model_filename = os.path.basename(model_uri)
-
         model_path = await self.train_local(csv_url)
+        storage_factory.write_data_from_dir(path_to=model_uri, path_from=model_path)
 
         return model_path
 
