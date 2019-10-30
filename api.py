@@ -1,3 +1,4 @@
+import aiohttp
 import json
 import logging
 
@@ -8,6 +9,7 @@ from aiohttp_validate import validate
 
 import settings
 from bgtask import bgt
+from helpers import get_sha1_hash
 from ml import ML, ModelNotFound, ErrorDownloadImage, ErrorProcessingImage, ModelIsLoading
 
 m = ML()
@@ -17,16 +19,32 @@ m = ML()
     request_schema={
         "type": "object",
         "properties": {
-            "csv_url": {"type": "string"},
-            "model_uri": {"type": "string"},
+            "metadata": {
+                "type": "object",
+                "properties": {"random_seed": {"type": "integer"}},
+                "required": ["random_seed"],
+                "additionalProperties": False
+            },
+            "csv": {
+                "type": "object",
+                "properties": {"url": {"type": "string"}, "sha1": {"type": "string"}},
+                "required": ["url", "sha1"],
+                "additionalProperties": False
+            },
+            "model": {
+                "type": "object",
+                "properties": {"uri": {"type": "string"}},
+                "required": ["uri"],
+                "additionalProperties": False
+            }
         },
-        "required": ["csv_url", "model_uri"],
+        "required": ["metadata", "csv", "model"],
         "additionalProperties": False
     },
     response_schema={
         "type": "object",
         "properties": {
-            "model_name": {"type": "string"},
+            "model_sha1": {"type": "string"},
             "status": {"type": "string"},
         },
     }
@@ -45,10 +63,23 @@ async def train(request, *args):
       schema:
         type: object
         properties:
-          csv_url:
-            type: "string"
-          model_uri:
-            type: string
+          metadata:
+            type: object
+            properties:
+              random_seed:
+                type: integer
+          csv:
+            type: object
+            properties:
+              url:
+                type: string
+              sha1:
+                type: string
+          model:
+            type: object
+            properties:
+              uri:
+                type: string
     responses:
         "200":
             description: Model name and storage URL
@@ -58,33 +89,66 @@ async def train(request, *args):
             description: Bad request
     """
 
-    model_name = m.get_model_name(request['model_uri'])
+    training_data = {
+        'metadata': request['metadata'],
+        'csv': request['csv'],
+        'model': request['model']
+    }
 
-    model = m.get_model(model_name)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(training_data['csv']['url']) as resp:
+            resource = await resp.text()
+            training_data['csv']['content'] = resource.encode('utf-8')
+
+    csv_content_hash = get_sha1_hash(training_data['csv']['content'])
+    if training_data['csv']['sha1'] != csv_content_hash:
+        logging.error("expected sha1={e}, but got sha1={g} for resource={r}".format(e=training_data['csv']['sha1'],
+                                                                                    g=csv_content_hash,
+                                                                                    r=training_data['csv']['url']))
+        return web.Response(body=json.dumps({
+            "error": "Hash of CSV does not equal of CSV content"
+        }, sort_keys=True), status=400)
+
+    model_sha1 = get_sha1_hash(str(training_data['metadata']['random_seed']).encode('utf-8'),
+                               training_data['csv']['content'])
+    training_data['model']['sha1'] = model_sha1
+    logging.warning('model sha1={s}'.format(s=model_sha1))
+
+    model = m.get_model(model_sha1)
     model_status = model['status']
 
     result = {
-        'model_name': model_name,
+        'model_sha1': model_sha1,
         'status': model_status
     }
 
     if model_status == m.NOT_FOUND:
         result['status'] = m.NEW
-        await bgt.run(m.train, [request['csv_url'], request['model_uri']])
+        await bgt.run(m.train, [training_data])
     elif model_status == m.ERROR and model.get('error'):
         result['error'] = model['error']
 
-    return web.Response(body=json.dumps(result))
+    return web.Response(body=json.dumps(result, sort_keys=True))
 
 
 @validate(
     request_schema={
         "type": "object",
         "properties": {
-            "image_url": {"type": "string"},
-            "model_uri": {"type": "string"},
+            "image": {
+                "type": "object",
+                "properties": {"url": {"type": "string"}},
+                "required": ["url"],
+                "additionalProperties": False
+            },
+            "model": {
+                "type": "object",
+                "properties": {"uri": {"type": "string"}},
+                "required": ["uri"],
+                "additionalProperties": False
+            }
         },
-        "required": ["image_url", "model_uri"],
+        "required": ["image", "model"],
         "additionalProperties": False
     },
     response_schema={
@@ -105,10 +169,16 @@ async def infer(request, *args):
       schema:
         type: object
         properties:
-          image_url:
-            type: "string"
-          model_uri:
-            type: string
+          image:
+            type: object
+            properties:
+              url:
+                type: string
+          model:
+            type: object
+            properties:
+              uri:
+                type: string
     responses:
         "200":
             description: Labels
@@ -125,7 +195,7 @@ async def infer(request, *args):
     except ModelNotFound:
         return web.Response(body=json.dumps({
             "error": "Model not found"
-        }), status=404)
+        }, sort_keys=True), status=404)
     except ModelIsLoading as e:
         return web.Response(body=json.dumps({
             "loading_status": e.status
@@ -133,15 +203,15 @@ async def infer(request, *args):
     except InvalidURL:
         return web.Response(body=json.dumps({
             "error": "Incorrect image URL"
-        }), status=400)
+        }, sort_keys=True), status=400)
     except ErrorDownloadImage:
         return web.Response(body=json.dumps({
             "error": "Error download image. Please check image URL."
-        }), status=500)
+        }, sort_keys=True), status=500)
     except ErrorProcessingImage:
         return web.Response(body=json.dumps({
             "error": "Error processing image. Please check image URL."
-        }), status=500)
+        }, sort_keys=True), status=500)
 
     return web.Response(body=json.dumps(result))
 

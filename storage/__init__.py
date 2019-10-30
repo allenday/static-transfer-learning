@@ -29,15 +29,17 @@ class Storage(AbstractStorage, ABC):
         if path.startswith("local://") or path.startswith("/"):
             return self.__get_local_storage()
 
-    def write_data_from_dir(self, path_from, path_to):
+    async def write_data_from_dir(self, path_from, path_to):
         logging.info('Start saving {path_from} to {path_to}'.format(path_from=path_from, path_to=path_to))
-        data = self.read_data_from_dir(path_from, path_to=None)
-        result = self.get_storage(path_to).write_multiple_files(path=path_to, data=data)
+        data = await self.read_data_from_dir(path_from, path_to=None)
+        storage = self.get_storage(path_to)
+        result = await storage.write_multiple_files(path=path_to, data=data)
         logging.info('End saving {path_from} to {path_to}'.format(path_from=path_from, path_to=path_to))
         return result
 
-    def read_data_from_dir(self, path, path_to=None):
-        return self.get_storage(path).read_data_from_dir(path, path_to)
+    async def read_data_from_dir(self, path, path_to=None):
+        storage = self.get_storage(path)
+        return await storage.read_data_from_dir(path, path_to)
 
     def write_multiple_files(self, path, data):
         return self.get_storage(path).write_multiple_files(path, data)

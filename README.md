@@ -33,21 +33,6 @@ This project demonstrates the utility of an ML system in which randomness is exc
     
 Please open Swagger by http://localhost:8080/api/doc
 
-### Public endpoint
-
-you can use deployed version http://34.90.202.123/api/doc (firewall rule in GCP is required)
-
-Example model id: `507a0a9ebc0e9eadb5b45a0b9db5a826377f5356` (based on http://tf-models.arilot.org/static-tf-models/input.csv)
-
-Example request:
-
-
-    curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d '{ \ 
-       "image_url": "https://sewoverit.co.uk/wp-content/uploads/2015/08/Anderson-Blouse-4.jpg", \ 
-       "model_url": "507a0a9ebc0e9eadb5b45a0b9db5a826377f5356" \ 
-     }' 'http://34.90.202.123/inference'
-
-
 ## Rest API
 
 ### Train mode
@@ -58,35 +43,46 @@ Example:
 ```sh
 # Input has two parameters. csv_url, and model_uri. These are described below.
 $ cat example-data/train.json 
-{"model_uri": "my-model", "csv_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/train.csv"}
+{
+  "metadata": {
+    "random_seed": 1234
+  },
+  "model": {
+    "uri": "gs://test/1"
+  },
+  "csv": {
+    "url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/train.csv",
+    "sha1": "fb2a7a2949330454364767ec393b4b62176b2335"
+  }
+}
 
 $ TRAIN=`cat example-data/train.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$TRAIN" http://localhost:8080/train
-{"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "new"}
+{"model_sha1": "9474ef2130cf215dd9892decba8e0d973fc2f003", "status": "new"}
 
 # You can continue to issue the same command while training happens. you'll get an "in_progress" response.
 $ !!
-{"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "in_progress"}
+{"model_sha1": "9474ef2130cf215dd9892decba8e0d973fc2f003", "status": "in_progress"}
 
 # Eventually it finishes training.
 $ !!
-{"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "ready"}
+{"model_sha1": "9474ef2130cf215dd9892decba8e0d973fc2f003", "status": "ready"}
 ```
 
 #### Arguments
-**csv_url** - URL of CSV file in format:
+**csv.url** - URL of CSV file in format:
 
 ```csv
-<image_url>,<label>
+<image_url>,<label>,<sha1>
 ```
 
 Example:
 ```csv
-https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/blouse/1019.jpg,blouse
-https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1041.jpg,sweater
-https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/halter/1096.jpg,halter
+https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/blouse/1000.jpg,blouse,5af19f931ddc77e57f09822fb079fe8994ff0cf6
+https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/blouse/1001.jpg,blouse,3156f545a905a7205782ad1cc5f29891ae6d3a5d
+https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/blouse/1002.jpg,blouse,40876a39b22e5b06f8ded15cc5146ac8262dad83
 ```
 
-**model_uri** - URI for saving the model file into Persistence Storage, like GCS or IPFS (no supported)
+**model.uri** - URI for saving the model file into Persistence Storage, like GCS or IPFS (no supported)
 
 Examples:
 ```
@@ -100,12 +96,12 @@ Rest API will response JSON, like
 
 ```json
 {
-  "model_name": "fe2199d0b79a2fe27c83c726e7b4307e1a066c02",
+  "model_sha1": "9474ef2130cf215dd9892decba8e0d973fc2f003",
   "status": "ready",
 }
 ```
 
-**model_name** - SHA1 hash, based on CSV file URL
+**model_sha1** - SHA1 hash, based on CSV file URL and model meta parameters
 
 **status** - model status.
 
@@ -114,6 +110,7 @@ Rest API will response JSON, like
 * **new** - Model does not exist locally and need to build
 * **in_progress** - Model building process in progress
 * **ready** - Model is built and ready to use
+* **error** - Some error on data downloading / model training
 
 ### Inference mode
 
@@ -122,11 +119,17 @@ Rest API will response JSON, like
 Example:
 ```sh
 # Use model_uri from /train
-$ cat infer.json 
-{"model_uri": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "image_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg"}
-
+$ cat example-data/infer.json 
+{
+  "model": {
+    "uri": "gs://static-transfer-learning/my-model"
+  },
+  "image": {
+    "url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg"
+  }
+}
 # classify an (unseen?) image
-$ INFER=`cat infer.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$INFER" http://localhost:8080/infer
+$ INFER=`cat example-data/infer.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$INFER" http://localhost:8080/infer
 {"blouse": 0.0, "halter": 0.0, "sweater": 1.0}
 ```
 

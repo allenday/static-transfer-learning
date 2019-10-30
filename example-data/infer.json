@@ -1,5 +1,8 @@
 {
-  "model_uri": "35f7df077717554b37958943cdeed8fc98a03478", 
-  "image_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg"
+  "model": {
+    "uri": "gs://static-transfer-learning/my-model"
+  },
+  "image": {
+    "url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg"
+  }
 }
-
