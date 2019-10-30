@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "random_seed": "1234"
+    "random_seed": 1234
   },
   "model": {
     "name": "my-model",
@@ -8,6 +8,6 @@
   },
   "csv": {
     "url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/train-tiny.csv",
-    "uri": "804319519227581bc647159d5946279019b6b312"
+    "uri": "9abcd53b4bdd2f20cbf6f3ad3b17ee05b58c0fc9"
   }
 }

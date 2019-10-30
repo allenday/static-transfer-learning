@@ -1,31 +1,48 @@
+from aiohttp import web
+from aiohttp.client_exceptions import InvalidURL
+from aiohttp_swagger import setup_swagger
+from aiohttp_validate import validate
+from bgtask import BackgroundTask
+from ml import ML, ModelNotFound, ErrorDownloadImage, ErrorProcessingImage
+import hashlib
 import json
 import logging
 import settings
-from aiohttp import web
-from bgtask import BackgroundTask
-from aiohttp_validate import validate
-from aiohttp_swagger import setup_swagger
-from aiohttp.client_exceptions import InvalidURL
-from ml import ML, ModelNotFound, ErrorDownloadImage, ErrorProcessingImage
+import urllib.request
 
 m = ML()
 bgt = BackgroundTask()
-
 
 @validate(
     request_schema={
         "type": "object",
         "properties": {
-            "csv_url": {"type": "string"},
-            "model_uri": {"type": "string"},
+            "metadata": {
+              "type": "object",
+              "properties": { "random_seed": {"type": "integer"} },
+              "required": [ "random_seed" ],
+              "additionalProperties": False
+            },
+            "csv": {
+              "type": "object",
+              "properties": { "url": {"type": "string"}, "uri": {"type": "string"} },
+              "required": [ "url", "uri" ],
+              "additionalProperties": False
+            },
+            "model": {
+              "type": "object",
+              "properties": { "name": {"type": "string"}, "uri": {"type": "string"} },
+              "required": [ "name", "uri" ],
+              "additionalProperties": False
+            }
         },
-        "required": ["csv_url", "model_uri"],
+        "required": ["metadata", "csv", "model"],
         "additionalProperties": False
     },
     response_schema={
         "type": "object",
         "properties": {
-            "model_name": {"type": "string"},
+            "model_sha1": {"type": "string"},
             "status": {"type": "string"},
         },
     }
@@ -44,10 +61,25 @@ async def train(request, *args):
       schema:
         type: object
         properties:
-          csv_url:
-            type: "string"
-          model_uri:
-            type: string
+          metadata:
+            type: object
+            properties:
+              random_seed:
+                type: integer
+          csv:
+            type: object
+            properties:
+              url:
+                type: string
+              uri:
+                type: string
+          model:
+            type: object
+            properties:
+              name:
+                type: string
+              uri:
+                type: string
     responses:
         "200":
             description: Model name and storage URL
@@ -57,23 +89,41 @@ async def train(request, *args):
             description: Bad request
     """
 
-    model_name = m.get_model_name(request['csv_url'])
+    training_data = { 'metadata': request['metadata'], 'csv': request['csv'], 'model': request['model'] }
 
-    model = m.get_model(model_name)
+
+    resource = urllib.request.urlopen(training_data['csv']['url'])
+    training_data['csv']['content'] = resource.read().decode(resource.headers.get_content_charset()).encode('utf-8')
+
+    m0 = hashlib.sha1()
+    m0.update(training_data['csv']['content'])
+    if training_data['csv']['uri'] != m0.hexdigest():
+        logging.error("expected sha1={e}, but got sha1={g} for resource={r}".format(e=training_data['csv']['uri'],g=m0.hexdigest(),r=training_data['csv']['url']))
+        return None
+
+    m1 = hashlib.sha1()
+    m1.update(str(training_data['metadata']['random_seed']).encode('utf-8'))
+    m1.update(training_data['csv']['content'])
+    training_data['model']['uri'] = m1.hexdigest()
+    logging.warn('model sha1={s}'.format(s=m1.hexdigest()))
+
+    model_sha1 = training_data['model']['uri']
+
+    model = m.get_model(model_sha1)
     model_status = model['status']
 
     result = {
-        'model_name': model_name,
+        'model_sha1': model_sha1,
         'status': model_status
     }
 
     if model_status == m.NOT_FOUND:
         result['status'] = m.NEW
-        await bgt.run(m.train, [request['csv_url'], request['model_uri']])
+        await bgt.run(m.train, [training_data])
     elif model_status == m.ERROR and model.get('error'):
         result['error'] = model['error']
 
-    return web.Response(body=json.dumps(result))
+    return web.Response(body=json.dumps(result,sort_keys=True))
 
 
 @validate(
@@ -124,19 +174,19 @@ async def infer(request, *args):
     except ModelNotFound:
         return web.Response(body=json.dumps({
             "error": "Model not found"
-        }), status=404)
+        },sort_keys=True), status=404)
     except InvalidURL:
         return web.Response(body=json.dumps({
             "error": "Incorrect image URL"
-        }), status=400)
+        },sort_keys=True), status=400)
     except ErrorDownloadImage:
         return web.Response(body=json.dumps({
             "error": "Error download image. Please check image URL."
-        }), status=500)
+        },sort_keys=True), status=500)
     except ErrorProcessingImage:
         return web.Response(body=json.dumps({
             "error": "Error processing image. Please check image URL."
-        }), status=500)
+        },sort_keys=True), status=500)
 
     return web.Response(body=json.dumps(result))
 

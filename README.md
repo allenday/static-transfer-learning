@@ -61,15 +61,15 @@ $ cat example-data/train.json
 {"model_uri": "my-model", "csv_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/train.csv"}
 
 $ TRAIN=`cat example-data/train.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$TRAIN" http://localhost:8080/train
-{"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "new"}
+{"model_name": "35f7df077717554b37958943cdeed8fc98a03478", "status": "new"}
 
 # You can continue to issue the same command while training happens. you'll get an "in_progress" response.
 $ !!
-{"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "in_progress"}
+{"model_name": "35f7df077717554b37958943cdeed8fc98a03478", "status": "in_progress"}
 
 # Eventually it finishes training.
 $ !!
-{"model_name": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "status": "ready"}
+{"model_name": "35f7df077717554b37958943cdeed8fc98a03478", "status": "ready"}
 ```
 
 #### Arguments
@@ -122,11 +122,13 @@ Rest API will response JSON, like
 Example:
 ```sh
 # Use model_uri from /train
-$ cat infer.json 
-{"model_uri": "18e5194e577513e7e60db6af9e07c58a6bbef4c8", "image_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg"}
-
+$ cat example-data/infer.json 
+{
+  "model_uri": "35f7df077717554b37958943cdeed8fc98a03478",
+  "image_url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg"
+}
 # classify an (unseen?) image
-$ INFER=`cat infer.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$INFER" http://localhost:8080/infer
+$ INFER=`cat example-data/infer.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$INFER" http://localhost:8080/infer
 {"blouse": 0.0, "halter": 0.0, "sweater": 1.0}
 ```
 

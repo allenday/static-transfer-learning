@@ -3,7 +3,7 @@ import os
 import uuid
 import logging
 import datetime
-
+import hashlib
 import settings
 
 os.environ['PYTHONHASHSEED'] = str(settings.RANDOM_SEED)
@@ -65,7 +65,7 @@ class ML(DataManager):
         """
         return 'Adam'
 
-    def get_model(self, model_name):
+    def get_model(self, model_sha1):
         """
         Tensorflow model getter from memory
         """
@@ -75,15 +75,15 @@ class ML(DataManager):
             'error': None,
             'status': self.NOT_FOUND
         }
-        return self.models.get(model_name, empty_result)
+        return self.models.get(model_sha1, empty_result)
 
-    def save_model_local(self, model, class_indices, csv_url):
+    def save_model_local(self, model, class_indices, training_data):
         """
         Save model to local filesystem
         """
 
-        model_name = self.get_model_name(csv_url)
-        model_path = self.get_model_path(model_name)
+        model_sha1 = training_data['model']['uri']
+        model_path = self.get_model_path(model_sha1)
         model_path_weights = os.path.join(model_path, 'model')
         model_path_json = os.path.join(model_path, 'model.json')
         model_class_indices = os.path.join(model_path, 'class_indices.json')
@@ -98,21 +98,21 @@ class ML(DataManager):
 
         logging.info('Model saved into {model_path}'.format(model_path=model_path))
 
-        self.models[model_name]['status'] = self.READY
+        self.models[model_sha1]['status'] = self.READY
 
         return model_path
 
-    def load_model_local(self, model_name):
+    def load_model_local(self, model_sha1):
         """
         Load model from local filesystem
         """
 
-        model = self.models.get(model_name)
+        model = self.models.get(model_sha1)
 
         if model and model.get('model') and model.get('class_indices') and model.get('status') == self.READY:
             return model
 
-        model_path = self.get_model_path(model_name)
+        model_path = self.get_model_path(model_sha1)
         model_path_weights = os.path.join(model_path, 'model')
         model_path_json = os.path.join(model_path, 'model.json')
         model_class_indices = os.path.join(model_path, 'class_indices.json')
@@ -121,7 +121,7 @@ class ML(DataManager):
                 model_class_indices):
             raise ModelNotFound('Model with path {model_path} is invalid'.format(model_path=model_path))
 
-        model = self.models[model_name] = {}
+        model = self.models[model_sha1] = {}
 
         with open(model_class_indices, "r") as json_file:
             model['class_indices'] = json.load(json_file)
@@ -152,28 +152,32 @@ class ML(DataManager):
             callbacks.append(tensorboard_callback)
         return callbacks
 
-    def __set_model_status(self, model_name, status, error=None):
-        if not self.models.get(model_name):
-            self.models[model_name] = {}
+    def __set_model_status(self, model_sha1, status, error=None):
+        if not self.models.get(model_sha1):
+            self.models[model_sha1] = {}
 
-        self.models[model_name]['status'] = status
-        self.models[model_name]['error'] = error
+        self.models[model_sha1]['status'] = status
+        self.models[model_sha1]['error'] = error
 
-    async def train_local(self, csv_url):
+    async def train_local(self, training_data):
         """
         Train model by CSV file
         """
 
         self.makedirs([self.MODELS_DIR])
 
-        model_name = self.get_model_name(csv_url)
+        model_sha1 = training_data['model']['uri']
+        self.__set_model_status(model_sha1, self.IN_PROGRESS)
 
-        self.__set_model_status(model_name, self.IN_PROGRESS)
-
-        train_dir, validate_dir, train_size, validate_size, error = await self.download_train_data(csv_url)
+        logging.warn("download training data...")
+        train_dir, validate_dir, train_size, validate_size, error = await self.download_train_data(training_data)
         if error:
-            self.__set_model_status(model_name, self.ERROR, error=error)
+            logging.error("failed to download training data: {e}".format(e=error))
+            self.__set_model_status(model_sha1, self.ERROR, error=error)
             return None
+
+        logging.debug("build tf from directory. train_dir={t}, validate_dir={v}, train_size={ts}, validate_size={vs}"
+            .format(t=train_dir,v=validate_dir,ts=train_size,vs=validate_size))
 
         train_generator = self.__get_image_data_generator().flow_from_directory(
             train_dir,
@@ -182,6 +186,7 @@ class ML(DataManager):
             seed=settings.RANDOM_SEED,
             shuffle=True,
             class_mode='categorical')
+        logging.debug("train_generator tf built")
 
         validation_generator = self.__get_image_data_generator().flow_from_directory(
             validate_dir,
@@ -190,34 +195,38 @@ class ML(DataManager):
             seed=settings.RANDOM_SEED,
             shuffle=True,
             class_mode='categorical')
+        logging.debug("validation_generator tf built")
 
         classes_count = len(train_generator.class_indices.keys())
+        logging.debug("classes_count={n}".format(n=classes_count))
 
-        model = tf.keras.Sequential()
-        model.add(tf.keras.layers.Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
+        model_ = tf.keras.Sequential()
+        model_.add(tf.keras.layers.Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
                                                 input_shape=train_generator.image_shape,
                                                 kernel_initializer=tf.keras.initializers.glorot_uniform(
                                                     seed=settings.RANDOM_SEED)))
-        # model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-        model.add(tf.keras.layers.Convolution2D(32, (3, 3), activation='relu',
+        # model_.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+        model_.add(tf.keras.layers.Convolution2D(32, (3, 3), activation='relu',
                                                 kernel_initializer=tf.keras.initializers.glorot_uniform(
                                                     seed=settings.RANDOM_SEED)))
-        # model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-        model.add(tf.keras.layers.Flatten())
-        model.add(tf.keras.layers.Dense(units=64, activation='relu',
+        # model_.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+        model_.add(tf.keras.layers.Flatten())
+        model_.add(tf.keras.layers.Dense(units=64, activation='relu',
                                         kernel_initializer=tf.keras.initializers.glorot_uniform(
                                             seed=settings.RANDOM_SEED)))
-        model.add(tf.keras.layers.Dense(units=classes_count, activation='softmax',
+        model_.add(tf.keras.layers.Dense(units=classes_count, activation='softmax',
                                         kernel_initializer=tf.keras.initializers.glorot_uniform(
                                             seed=settings.RANDOM_SEED)))
+        logging.debug("model_ built")
 
-        model.compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
+        model_.compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
                       metrics=['accuracy'])
+        logging.debug("model_ compiled")
 
         steps_per_epoch = round(train_size) // settings.BATCH_SIZE
         validation_steps = round(validate_size) // settings.BATCH_SIZE
 
-        model.fit_generator(train_generator,
+        model_.fit_generator(train_generator,
                             epochs=settings.EPOCHS,
                             steps_per_epoch=steps_per_epoch,
                             validation_data=validation_generator,
@@ -225,15 +234,16 @@ class ML(DataManager):
                             shuffle=False,
                             # max_queue_size=1,
                             callbacks=self.__get_callbacks())
+        logging.debug("model_ fit")
 
-        model_path = self.save_model_local(model, train_generator.class_indices, csv_url)
+        model_path = self.save_model_local(model_, train_generator.class_indices, training_data['csv']['url'])
 
         # Clear TF session after train
         tf.keras.backend.clear_session()
 
         return model_path
 
-    async def train(self, csv_url, model_uri):
+    async def train(self, training_data):
         """
         Train method wrapper for support external storages for model,
         like GCS and IPFS
@@ -241,13 +251,28 @@ class ML(DataManager):
         TODO: add GCS and IPFS support
         """
 
-        model_filename = os.path.basename(model_uri)
+        #resource = urllib.request.urlopen(training_data['csv']['url'])
+        #training_data['csv']['content'] = resource.read().decode(resource.headers.get_content_charset())
 
-        model_path = await self.train_local(csv_url)
+        #m0 = hashlib.sha1()
+        #m0.update(training_data['csv']['content'])
+        #if training_data['csv']['uri'] != m0.hexdigest():
+        #    logging.error("expected sha1={e}, but got sha1={g} for resource={r}".format(e=training_data['csv']['uri'],g=m0.hexdigest(),r=training_data['csv']['url']))
+        #    return None
+
+        #m1 = hashlib.sha1()
+        #m1.update(str(training_data['metadata']['random_seed']))
+        #m1.update(training_data['csv']['content'])
+        #training_data['model']['uri'] = m1.hexdigest()
+        #logging.warn('model sha1={s}'.format(s=m1.hexdigest()))
+
+        model_filename = os.path.basename(training_data['model']['name'])
+        logging.warn("model_filename={m}".format(m=model_filename))
+        model_path = await self.train_local(training_data)
 
         return model_path
 
-    async def infer_local(self, image_url, model_name):
+    async def infer_local(self, image_url, model_sha1):
         # Prepare
         self.makedirs([self.TMP_DIR])
 
@@ -262,7 +287,7 @@ class ML(DataManager):
             raise ErrorDownloadImage('Error download image by url "{url}"'.format(url=image_url))
 
         # Init graph & model
-        model = self.load_model_local(model_name)
+        model = self.load_model_local(model_sha1)
 
         img = tf.keras.preprocessing.image.load_img(image_tmp_path,
                                                     target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
