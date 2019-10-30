@@ -40,7 +40,7 @@ class Storage(AbstractStorage, ABC):
         return self.get_storage(path).read_data_from_dir(path, path_to)
 
     def write_multiple_files(self, path, data):
-        path
+        return self.get_storage(path).write_multiple_files(path, data)
 
     def write_data(self, path, data):
         self.get_storage(path).write_data(path, data)
