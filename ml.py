@@ -249,7 +249,7 @@ class ML(DataManager):
         TODO: add GCS and IPFS support
         """
 
-        model_path = await self.train_local(self.get_model(model_uri), csv_url)
+        model_path = await self.train_local(self.get_model(self.get_model_name(model_uri)), csv_url)
         try:
             storage_factory.write_data_from_dir(path_to=model_uri, path_from=model_path)
         except Exception as exc:
