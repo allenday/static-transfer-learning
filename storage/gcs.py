@@ -37,9 +37,11 @@ class GcsStorage(AbstractStorage):
         bucket_name = self.__get_bucket_name(path)
         async with Session(timeout=settings.GOOGLE_CLOUD_STORAGE_UPLOAD_TIMEOUT) as session:
             storage = Storage(service_file=settings.GOOGLE_APPLICATION_CREDENTIALS, session=session)
-            data = await storage.download(bucket_name, self.__get_file_path(path))
+            data = await storage.download(bucket_name, self.__get_file_path(path),
+                                          timeout=settings.GOOGLE_CLOUD_STORAGE_UPLOAD_TIMEOUT)
 
             if path_to:
+                os.makedirs(os.path.dirname(path_to), exist_ok=True)
                 open(path_to, 'wb').write(data)
 
             return data
