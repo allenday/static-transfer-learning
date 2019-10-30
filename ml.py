@@ -1,14 +1,14 @@
+import datetime
 import glob
 import json
+import logging
 import os
 import shutil
 import uuid
-import logging
-import datetime
 
 import settings
 from bgtask import bgt
-from storage import Storage, storage_factory
+from storage import storage_factory
 
 os.environ['PYTHONHASHSEED'] = str(settings.RANDOM_SEED)
 import random

@@ -1,11 +1,13 @@
 import json
 import logging
-import settings
+
 from aiohttp import web
-from bgtask import bgt
-from aiohttp_validate import validate
-from aiohttp_swagger import setup_swagger
 from aiohttp.client_exceptions import InvalidURL
+from aiohttp_swagger import setup_swagger
+from aiohttp_validate import validate
+
+import settings
+from bgtask import bgt
 from ml import ML, ModelNotFound, ErrorDownloadImage, ErrorProcessingImage, ModelIsLoading
 
 m = ML()
@@ -140,7 +142,6 @@ async def infer(request, *args):
         return web.Response(body=json.dumps({
             "error": "Error processing image. Please check image URL."
         }), status=500)
-
 
     return web.Response(body=json.dumps(result))
 

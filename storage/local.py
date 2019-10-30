@@ -18,7 +18,7 @@ class LocalStorage(AbstractStorage, ABC):
         """
         TODO Implement Copy to location
         :param path:
-        :param dir_to:
+        :param path_to:
         :return:
         """
         if path_to is not None:
@@ -39,7 +39,7 @@ class LocalStorage(AbstractStorage, ABC):
         """
         TODO Implement Copy to directory
         :param path:
-        :param dir_to:
+        :param path_to:
         :return:
         """
         if path_to is not None:
@@ -58,4 +58,3 @@ class LocalStorage(AbstractStorage, ABC):
             })
 
         return data
-

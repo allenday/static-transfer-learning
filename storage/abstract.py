@@ -14,7 +14,8 @@ class AbstractStorage(ABC):
                         "name": name (str)
                     }
         """
-        pass
+
+    pass
 
     @abstractmethod
     def write_data(self, path, data):

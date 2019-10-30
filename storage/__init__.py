@@ -31,12 +31,12 @@ class Storage(AbstractStorage, ABC):
 
     def write_data_from_dir(self, path_from, path_to):
         logging.info('Start saving {path_from} to {path_to}'.format(path_from=path_from, path_to=path_to))
-        data = self.read_data_from_dir(path_from)
+        data = self.read_data_from_dir(path_from, path_to=None)
         result = self.get_storage(path_to).write_multiple_files(path=path_to, data=data)
         logging.info('End saving {path_from} to {path_to}'.format(path_from=path_from, path_to=path_to))
         return result
 
-    def read_data_from_dir(self, path, path_to):
+    def read_data_from_dir(self, path, path_to=None):
         return self.get_storage(path).read_data_from_dir(path, path_to)
 
     def write_multiple_files(self, path, data):
@@ -45,7 +45,7 @@ class Storage(AbstractStorage, ABC):
     def write_data(self, path, data):
         self.get_storage(path).write_data(path, data)
 
-    def read_data(self, path):
+    def read_data(self, path, path_to=None):
         return self.get_storage(path).read_data(path)
 
 
