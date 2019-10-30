@@ -324,8 +324,8 @@ class ML(DataManager):
         return bgtask
 
     async def load_model(self, model_uri):
+        model_name = self.get_model_name(model_uri)
         try:
-            model_name = self.get_model_name(model_uri)
             self.__set_model_status(model_name, self.LOADING_START)
             tmp_path = os.path.join(self.TMP_DIR, uuid.uuid1().__str__() + '/')
             os.mkdir(tmp_path)
@@ -339,6 +339,7 @@ class ML(DataManager):
 
             self.__set_model_status(model_name, self.LOADING_END)
         except Exception as exc:
+            self.__set_model_status(model_name, self.ERROR)
             logging.error('Can not download model from {model_uri}'.format(model_uri=model_uri))
             logging.error(exc)
 
