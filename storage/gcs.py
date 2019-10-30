@@ -2,10 +2,11 @@ import json
 import logging
 import os
 
-import settings
-from storage.abstract import AbstractStorage
 from google.cloud import storage
 from google.oauth2 import service_account
+
+import settings
+from storage.abstract import AbstractStorage
 
 
 class GcsStorage(AbstractStorage):
@@ -63,8 +64,8 @@ class GcsStorage(AbstractStorage):
         result = list()
         base_file_path = self.__get_file_path(path)
         for item in items:
-            file_location = item.name[len(base_file_path) + 1: ]
-            path_to_location = os.path.join(path_to,file_location) if path_to else  None
+            file_location = item.name[len(base_file_path) + 1:]
+            path_to_location = os.path.join(path_to, file_location) if path_to else None
             result.append({
                 "path": file_location,
                 "location": path_to_location,
