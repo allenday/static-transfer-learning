@@ -87,12 +87,11 @@ class ML(DataManager):
         }
         return self.models.get(model_name, empty_result)
 
-    def save_model_local(self, model, class_indices, csv_url):
+    def save_model_local(self, model, class_indices, csv_url, model_name):
         """
         Save model to local filesystem
         """
 
-        model_name = self.get_model_name(csv_url)
         model_path = self.get_model_path(model_name)
         model_path_weights = os.path.join(model_path, 'model')
         model_path_json = os.path.join(model_path, 'model.json')
@@ -176,6 +175,7 @@ class ML(DataManager):
 
         self.makedirs([self.MODELS_DIR])
 
+
         self.__set_model_status(model_name, self.IN_PROGRESS)
 
         train_dir, validate_dir, train_size, validate_size, error = await self.download_train_data(csv_url)
@@ -234,7 +234,7 @@ class ML(DataManager):
                             # max_queue_size=1,
                             callbacks=self.__get_callbacks())
 
-        model_path = self.save_model_local(model, train_generator.class_indices, csv_url)
+        model_path = self.save_model_local(model, train_generator.class_indices, csv_url, model_name)
 
         # Clear TF session after train
         tf.keras.backend.clear_session()
@@ -248,15 +248,16 @@ class ML(DataManager):
 
         TODO: add GCS and IPFS support
         """
-
-        model_path = await self.train_local(self.get_model_name(model_uri), csv_url)
+        model_name = self.get_model_name(model_uri)
+        model_path = await self.train_local(model_name, csv_url)
         try:
             storage_factory.write_data_from_dir(path_to=model_uri, path_from=model_path)
         except Exception as exc:
             error = "Error write data to {model_uri}".format(model_uri=model_uri)
+            self.__set_model_status(model_name, self.ERROR, error=error)
             logging.error('Cant upload data from {model_path}: {error}'.format(model_path=model_path, error=error))
             logging.error(exc)
-            return None, None, None, None, error
+            # return None, None, None, None, error
 
         return model_path
 
