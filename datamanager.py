@@ -33,19 +33,14 @@ class DataManager(object):
     def __init__(self):
         self.ipfs_client = ipfshttpclient.connect(settings.IPFS_ADDRESS)
 
-    def get_model_name(self, url):
-        m = hashlib.sha1()
-        m.update(url.encode('utf-8'))
-        return m.hexdigest()
-
     def __ipfs_save(self, file_path):
         return self.ipfs_client.add(file_path)
 
     def __get_ipfs(self, hash):
         return self.ipfs_client.cat(hash)
 
-    def get_model_path(self, file_name):
-        return os.path.join(self.MODELS_DIR, file_name)
+    def get_model_path(self, model_sha1):
+        return os.path.join(self.MODELS_DIR, model_sha1)
 
     def makedirs(self, dirs):
         for path in dirs:
