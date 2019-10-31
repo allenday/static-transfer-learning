@@ -119,43 +119,6 @@ class ML(DataManager):
 
         return model_path
 
-    def __load_model_local(self, model_sha1):
-        """
-        Load model from local filesystem
-        """
-
-        model = self.get_model(model_sha1)
-
-        if model and model.get('model') and model.get('class_indices') and model.get('status') == self.READY:
-            return model
-
-        model_path = self.get_model_path(model_sha1)
-        model_path_weights = os.path.join(model_path, 'model')
-        model_path_json = os.path.join(model_path, 'model.json')
-        model_class_indices = os.path.join(model_path, 'class_indices.json')
-
-        if not os.path.exists(model_path) or not os.path.exists(model_path_json) or not os.path.exists(
-                model_class_indices):
-            return model
-
-        model = self.models[model_sha1] = {}
-
-        with open(model_class_indices, "r") as json_file:
-            model['class_indices'] = json.load(json_file)
-
-        with open(model_path_json, "r") as json_file:
-            model['model'] = model_from_json(json_file.read())
-
-        model['model'].load_weights(model_path_weights)
-
-        # Compile model for use optimizers
-        model['model'].compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
-                               metrics=['categorical_accuracy', 'accuracy'])
-
-        model['status'] = self.READY
-
-        return model
-
     async def __infer_local(self, image_url, model_sha1):
         # Prepare
         self.makedirs([self.TMP_DIR])
@@ -171,7 +134,7 @@ class ML(DataManager):
             raise ErrorDownloadImage('Error download image by url "{url}"'.format(url=image_url))
 
         # Init graph & model
-        model = self.__load_model_local(model_sha1)
+        model = self.load_model_local(model_sha1)
 
         img = tf.keras.preprocessing.image.load_img(image_tmp_path,
                                                     target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE))
@@ -290,6 +253,45 @@ class ML(DataManager):
         }
         return self.models.get(model_sha1, empty_result)
 
+    def load_model_local(self, model_sha1):
+        """
+        Load model from local filesystem
+        """
+
+        model = self.get_model(model_sha1)
+
+        if model and model.get('model') and model.get('class_indices') and model.get('status') == self.READY:
+            logging.error('Successfully loading model {model_sha1}: model'.format(model_sha1=model_sha1))
+            return model
+
+        model_path = self.get_model_path(model_sha1)
+        model_path_weights = os.path.join(model_path, 'model')
+        model_path_json = os.path.join(model_path, 'model.json')
+        model_class_indices = os.path.join(model_path, 'class_indices.json')
+
+        if not os.path.exists(model_path) or not os.path.exists(model_path_json) or not os.path.exists(
+                model_class_indices):
+            logging.error('Error loading model {model_sha1}: not all paths exists'.format(model_sha1=model_sha1))
+            return model
+
+        model = self.models[model_sha1] = {}
+
+        with open(model_class_indices, "r") as json_file:
+            model['class_indices'] = json.load(json_file)
+
+        with open(model_path_json, "r") as json_file:
+            model['model'] = model_from_json(json_file.read())
+
+        model['model'].load_weights(model_path_weights)
+
+        # Compile model for use optimizers
+        model['model'].compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
+                               metrics=['categorical_accuracy', 'accuracy'])
+
+        model['status'] = self.READY
+
+        return model
+
     async def load_model(self, model_uri):
         model_sha1 = get_sha1_hash(model_uri)
 
@@ -309,7 +311,7 @@ class ML(DataManager):
 
             self.__set_model_status(model_sha1, self.LOADING_END)
 
-            self.__load_model_local(model_sha1)
+            self.load_model_local(model_sha1)
         except Exception as exc:
             self.__set_model_status(model_sha1, self.ERROR)
             logging.error('Can not download model from {model_uri}'.format(model_uri=model_uri))
@@ -324,7 +326,13 @@ class ML(DataManager):
         TODO: add IPFS support
         """
 
+        model = self.load_model_local(training_data['model']['sha1'])
+
+        if model['status'] == self.READY:
+            return model
+
         model_path = await self.__train_local(training_data)
+        self.__set_model_status(training_data['model']['sha1'], self.IN_PROGRESS)
         try:
             await storage_factory.write_data_from_dir(path_from=model_path, path_to=training_data['model']['uri'])
         except Exception as exc:
@@ -341,8 +349,8 @@ class ML(DataManager):
         TODO: add IPFS support
         """
 
-        model_sha1 = get_sha1_hash(model['uri'])
-        model_status = self.__load_model_local(model_sha1)['status']
+        model_sha1 = model['sha1']
+        model_status = self.load_model_local(model_sha1)['status']
 
         if model_status == self.NOT_FOUND:
             await bgt.run(self.load_model, [model['uri']])

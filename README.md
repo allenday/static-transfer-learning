@@ -122,26 +122,29 @@ Example:
 $ cat example-data/infer.json 
 {
   "model": {
-    "uri": "gs://static-transfer-learning/my-model"
+    "uri": "gs://static-transfer-learning/my-model",
+    "sha1": "9474ef2130cf215dd9892decba8e0d973fc2f003"
   },
   "image": {
     "url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg"
   }
-}
+}(
 # classify an (unseen?) image
 $ INFER=`cat example-data/infer.json`; curl -X POST --header 'Content-Type: application/json' --header 'Accept: text/plain' -d "$INFER" http://localhost:8080/infer
 {"blouse": 0.0, "halter": 0.0, "sweater": 1.0}
 ```
 
 #### Arguments
-**image_url** - URL of Image
 
-**model_uri** - Model name (from train mode response) or model URI (like GCS or IPFS) (no supported)
 
-Examples:
+* **model.uri** - Model URI (like GCS or IPFS (no supported))
+* **model.sha1** - Model sha1 (from train mode response)
+* **image.uri** - URL of Image
+
+Examples of Model URI:
 
 ```
-fe2199d0b79a2fe27c83c726e7b4307e1a066c02                        # Local model
+/fe2199d0b79a2fe27c83c726e7b4307e1a066c02                       # Local model
 local://fe2199d0b79a2fe27c83c726e7b4307e1a066c02                # Local model example #2
 gs://my-bucket/my-model                                         # Google cloud storage (not supported)
 ipfs://QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG/my-model  # IPFS (not supported)

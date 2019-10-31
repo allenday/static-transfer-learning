@@ -4,7 +4,6 @@ from aiohttp import ClientSession
 from asyncio_pool import AioPool
 import async_timeout
 import csv
-import hashlib
 import logging
 import os
 import random

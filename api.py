@@ -114,18 +114,17 @@ async def train(request, *args):
     training_data['model']['sha1'] = model_sha1
     logging.warning('model sha1={s}'.format(s=model_sha1))
 
-    model = m.get_model(model_sha1)
-    model_status = model['status']
+    model = m.load_model_local(model_sha1)
 
     result = {
         'model_sha1': model_sha1,
-        'status': model_status
+        'status': model['status']
     }
 
-    if model_status == m.NOT_FOUND:
+    if model['status'] == m.NOT_FOUND:
         result['status'] = m.NEW
         await bgt.run(m.train, [training_data])
-    elif model_status == m.ERROR and model.get('error'):
+    elif model['status'] == m.ERROR and model.get('error'):
         result['error'] = model['error']
 
     return web.Response(body=json.dumps(result, sort_keys=True))
@@ -143,8 +142,8 @@ async def train(request, *args):
             },
             "model": {
                 "type": "object",
-                "properties": {"uri": {"type": "string"}},
-                "required": ["uri"],
+                "properties": {"uri": {"type": "string"}, "sha1": {"type": "string"}},
+                "required": ["uri", "sha1"],
                 "additionalProperties": False
             }
         },
@@ -178,6 +177,8 @@ async def infer(request, *args):
             type: object
             properties:
               uri:
+                type: string
+              sha1:
                 type: string
     responses:
         "200":
