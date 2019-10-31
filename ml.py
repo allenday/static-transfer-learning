@@ -115,8 +115,6 @@ class ML(DataManager):
 
         logging.info('Model saved into {model_path}'.format(model_path=model_path))
 
-        self.models[model_sha1]['status'] = self.READY
-
         return model_path
 
     async def __infer_local(self, image_url, model_sha1):
@@ -164,6 +162,11 @@ class ML(DataManager):
         self.makedirs([self.MODELS_DIR])
 
         model_sha1 = training_data['model']['sha1']
+        random_seed = training_data['metadata']['random_seed']
+
+        random.seed(random_seed)
+        np.random.seed(random_seed)
+        tf.set_random_seed(random_seed)
 
         self.__set_model_status(model_sha1, self.IN_PROGRESS)
 
@@ -181,7 +184,7 @@ class ML(DataManager):
             train_dir,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             batch_size=settings.BATCH_SIZE,
-            seed=settings.RANDOM_SEED,
+            seed=random_seed,
             shuffle=True,
             class_mode='categorical')
         logging.debug("train_generator tf built")
@@ -190,7 +193,7 @@ class ML(DataManager):
             validate_dir,
             target_size=(settings.IMAGE_SIZE, settings.IMAGE_SIZE),
             batch_size=settings.BATCH_SIZE,
-            seed=settings.RANDOM_SEED,
+            seed=random_seed,
             shuffle=True,
             class_mode='categorical')
         logging.debug("validation_generator tf built")
@@ -202,19 +205,19 @@ class ML(DataManager):
         model_.add(tf.keras.layers.Convolution2D(filters=56, kernel_size=(3, 3), activation='relu',
                                                  input_shape=train_generator.image_shape,
                                                  kernel_initializer=tf.keras.initializers.glorot_uniform(
-                                                     seed=settings.RANDOM_SEED)))
+                                                     seed=random_seed)))
         # model_.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
         model_.add(tf.keras.layers.Convolution2D(32, (3, 3), activation='relu',
                                                  kernel_initializer=tf.keras.initializers.glorot_uniform(
-                                                     seed=settings.RANDOM_SEED)))
+                                                     seed=random_seed)))
         # model_.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
         model_.add(tf.keras.layers.Flatten())
         model_.add(tf.keras.layers.Dense(units=64, activation='relu',
                                          kernel_initializer=tf.keras.initializers.glorot_uniform(
-                                             seed=settings.RANDOM_SEED)))
+                                             seed=random_seed)))
         model_.add(tf.keras.layers.Dense(units=classes_count, activation='softmax',
                                          kernel_initializer=tf.keras.initializers.glorot_uniform(
-                                             seed=settings.RANDOM_SEED)))
+                                             seed=random_seed)))
         logging.debug("model_ built")
 
         model_.compile(optimizer=self.__get_optimizer(), loss='categorical_crossentropy',
@@ -233,6 +236,8 @@ class ML(DataManager):
                              # max_queue_size=1,
                              callbacks=self.__get_callbacks())
         logging.debug("model_ fit")
+
+        self.models[model_sha1]['status'] = self.READY
 
         model_path = self.__save_model_local(model_, train_generator.class_indices, training_data)
 
@@ -271,7 +276,7 @@ class ML(DataManager):
 
         if not os.path.exists(model_path) or not os.path.exists(model_path_json) or not os.path.exists(
                 model_class_indices):
-            logging.error('Error loading model {model_sha1}: not all paths exists'.format(model_sha1=model_sha1))
+            logging.debug('Not loading model {model_sha1}: not all paths exists'.format(model_sha1=model_sha1))
             return model
 
         model = self.models[model_sha1] = {}

@@ -1,7 +1,7 @@
 {
   "model": {
     "uri": "gs://static-transfer-learning/my-model",
-    "sha1": "9474ef2130cf215dd9892decba8e0d973fc2f003"
+    "sha1": "8c2b21181abce83bf795363306a545cf1e0353fd"
   },
   "image": {
     "url": "https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg"
