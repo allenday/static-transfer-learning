@@ -193,7 +193,6 @@ Available variables:
 | TRAIN_PERCENTAGE | `0.9`     | Proportion of data distribution for training and validation. `0.9` means that 90% will be given for training, and 10% for training |
 | DOWNLOAD_POOL_SIZE | `100`   | Size of AioPool: how many concurrent tasks can work when loading images from CSV |
 | IPFS_ADDRESS     | `/dns/ipfs.infura.io/tcp/5001/https` | Address of IPFS endpoint. Infura public endpoint by default |
-| IPFS_PORT    |  `5001`       | Port of IPFS endpoint      |
 | DEFAULT_INPUT_CSV_URL | `https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/train.csv` | Default URL of CSV file with images and labels for training. You can set this value using `--csv-url` CLI flag |
 | DEFAULT_MODEL_FILENAME | `default` | Default file name of model. You can set this value using `--model-filename` CLI flag |
 | DEFAULT_TEST_IMG_URL | `https://raw.githubusercontent.com/allenday/static-transfer-learning/master/example-data/sweater/1042.jpg` | Default URL of test image for predict mode. You can set this value using `--image-url` CLI flag |
