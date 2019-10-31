@@ -16,3 +16,6 @@ class BackgroundTask:
 
         loop.run_until_complete(fut)
         loop.close()
+
+
+bgt = BackgroundTask()

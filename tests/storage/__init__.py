@@ -1,0 +1,4 @@
+
+
+class BaseStorage(object):
+    pass
