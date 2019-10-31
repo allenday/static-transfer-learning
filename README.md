@@ -69,6 +69,7 @@ $ !!
 ```
 
 #### Arguments
+**metadata.random_seed** - Custom Random Seed value
 **csv.url** - URL of CSV file in format:
 
 ```csv
