@@ -24,7 +24,7 @@ class GcsStorage(AbstractStorage):
         await asyncio.gather(*futures)
 
     async def write_data(self, path, data):
-        logging.info('Start writing data to {path}'.format(path=path))
+        logging.debug('Start writing data to {path}'.format(path=path))
         real_path = self.__get_file_path(path)
         bucket_name = self.__get_bucket_name(path)
 
