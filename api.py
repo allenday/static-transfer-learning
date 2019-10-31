@@ -1,7 +1,8 @@
-import aiohttp
 import json
 import logging
+import os
 
+import aiohttp
 from aiohttp import web
 from aiohttp.client_exceptions import InvalidURL
 from aiohttp_swagger import setup_swagger
@@ -9,7 +10,7 @@ from aiohttp_validate import validate
 
 import settings
 from bgtask import bgt
-from helpers import get_sha1_hash
+from helpers import get_sha1_hash, get_sha1_hash_from_dir
 from ml import ML, ModelNotFound, ErrorDownloadImage, ErrorProcessingImage, ModelIsLoading
 
 m = ML()
@@ -126,6 +127,9 @@ async def train(request, *args):
         await bgt.run(m.train, [training_data])
     elif model['status'] == m.ERROR and model.get('error'):
         result['error'] = model['error']
+    elif model['status'] == m.READY:
+        result['files_sha1'] = get_sha1_hash_from_dir(
+            os.path.join(settings.DATA_DIR, 'models', training_data['model']['sha1']))
 
     return web.Response(body=json.dumps(result, sort_keys=True))
 
