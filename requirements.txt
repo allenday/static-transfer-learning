@@ -11,5 +11,5 @@ keras==2.2.5
 aiohttp-swagger==1.0.9
 gcloud-aio-storage==5.0.0
 numpy==1.17.1
-tensorflow==1.14.0
+tensorflow==1.15.4
 urllib3==1.25.6
