@@ -12,4 +12,4 @@ aiohttp-swagger==1.0.9
 gcloud-aio-storage==5.0.0
 numpy==1.17.1
 tensorflow==1.14.0
-urllib3==1.25.6
+urllib3==1.25.8
